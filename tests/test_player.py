@@ -21,6 +21,7 @@ class TestPlayer(unittest.TestCase):
         self.assertEqual(['8'], self.play.put_out)
         self.assertEqual([], self.play.assist)
         self.assertEqual([], self.play.error)
+        self.assertEqual(1, self.play.batter_out)
 
     def test_sacrifice_fly(self):
         self.play.parse('9/SF.3-H')
@@ -41,6 +42,7 @@ class TestPlayer(unittest.TestCase):
         self.assertEqual(['3'], self.play.put_out)
         self.assertEqual(['6'], self.play.assist)
         self.assertEqual([], self.play.error)
+        self.assertEqual(1, self.play.batter_out)
 
         self.play.parse('143/G1')
         self.assertEqual(1, self.play.num_out)
@@ -48,6 +50,7 @@ class TestPlayer(unittest.TestCase):
         self.assertEqual(['3'], self.play.put_out)
         self.assertEqual(['1', '4'], self.play.assist)
         self.assertEqual([], self.play.error)
+        self.assertEqual(1, self.play.batter_out)
 
         self.play.parse('54(B)/BG25/SH.1-2')
         self.assertEqual(1, self.play.num_out)
@@ -55,6 +58,7 @@ class TestPlayer(unittest.TestCase):
         self.assertEqual(['4'], self.play.put_out)
         self.assertEqual(['5'], self.play.assist)
         self.assertEqual([], self.play.error)
+        self.assertEqual(1, self.play.batter_out)
 
     def test_force_out(self):
         self.play.parse('54(1)/FO/G5.3-H;B-1')
@@ -190,6 +194,7 @@ class TestPlayer(unittest.TestCase):
         self.assertEqual([], self.play.put_out)
         self.assertEqual([], self.play.assist)
         self.assertEqual(['1'], self.play.error)
+        self.assertEqual(1, self.play.error_batter_on_base)
 
         self.play.parse('E3.1-2;B-1')
         self.assertEqual(0, self.play.num_out)
@@ -197,6 +202,7 @@ class TestPlayer(unittest.TestCase):
         self.assertEqual([], self.play.put_out)
         self.assertEqual([], self.play.assist)
         self.assertEqual(['3'], self.play.error)
+        self.assertEqual(1, self.play.error_batter_on_base)
 
         self.play.parse('3E1')  # error with assist
         self.assertEqual(0, self.play.num_out)
@@ -204,6 +210,7 @@ class TestPlayer(unittest.TestCase):
         self.assertEqual([], self.play.put_out)
         self.assertEqual(['3'], self.play.assist)
         self.assertEqual(['1'], self.play.error)
+        self.assertEqual(1, self.play.error_batter_on_base)
 
     def test_fielders_choice(self):
         self.play.parse('FC5/G5.3XH(52)',  '3X4(52)')
@@ -239,6 +246,7 @@ class TestPlayer(unittest.TestCase):
         self.assertEqual([], self.play.assist)
         self.assertEqual([], self.play.error)
         self.assertEqual(1, self.play.home_run)
+        self.assertEqual(1, self.play.run_batted_in)
 
         self.play.parse('HR/F78XD.2-H;1-H', '2-4;1-4')
         self.assertEqual(0, self.play.num_out)
@@ -247,6 +255,7 @@ class TestPlayer(unittest.TestCase):
         self.assertEqual([], self.play.assist)
         self.assertEqual([], self.play.error)
         self.assertEqual(1, self.play.home_run)
+        self.assertEqual(3, self.play.run_batted_in)
 
     def test_strike_out(self):
         self.play.parse('K')
@@ -636,11 +645,79 @@ class TestPlayer(unittest.TestCase):
         self.assertEqual([], self.play.error)
         self.assertEqual(['H', '2'], self.play.stolen_base)
 
+    def test_error_on_advance(self):
+        self.play.parse('FC6/G6', '1-2(E6);0-1')
+        self.assertEqual(0, self.play.num_out)
+        self.assertEqual(0, self.play.num_run)
+        self.assertEqual([], self.play.put_out)
+        self.assertEqual([], self.play.assist)
+        self.assertEqual(['6'], self.play.error)
+        self.assertEqual([], self.play.stolen_base)
+
+    def test_putout_on_advance(self):
+        self.play.parse('FC/G1', '3X4(125);1-3;0-2')
+        self.assertEqual(1, self.play.num_out)
+        self.assertEqual(0, self.play.num_run)
+        self.assertEqual(['5'], self.play.put_out)
+        self.assertEqual(['1', '2'], self.play.assist)
+        self.assertEqual([], self.play.error)
+        self.assertEqual([], self.play.stolen_base)
+
+    def test_score_on_advance(self):
+        self.play.parse('D7/G5', '3-4;2-4;1-4')
+        self.assertEqual(0, self.play.num_out)
+        self.assertEqual(3, self.play.num_run)
+        self.assertEqual([], self.play.put_out)
+        self.assertEqual([], self.play.assist)
+        self.assertEqual([], self.play.error)
+        self.assertEqual(3, self.play.run_batted_in)
+
+        self.play.parse('HR/F9LD', '3-4;2-4;1-4')
+        self.assertEqual(0, self.play.num_out)
+        self.assertEqual(4, self.play.num_run)
+        self.assertEqual([], self.play.put_out)
+        self.assertEqual([], self.play.assist)
+        self.assertEqual([], self.play.error)
+        self.assertEqual(4, self.play.run_batted_in)
+
+    def test_run_batted_in_exclusion(self):
+        self.play.parse('46(1)3/GDP/G4', '3-4')
+        self.assertEqual(2, self.play.num_out)
+        self.assertEqual(1, self.play.num_run)
+        self.assertEqual(['6', '3'], self.play.put_out)
+        self.assertEqual(['4'], self.play.assist)
+        self.assertEqual([], self.play.error)
+        self.assertEqual(0, self.play.run_batted_in)
+
+        self.play.parse('FC4/G4', '1-4(E4/T4);0-2')
+        self.assertEqual(0, self.play.num_out)
+        self.assertEqual(1, self.play.num_run)
+        self.assertEqual([], self.play.put_out)
+        self.assertEqual([], self.play.assist)
+        self.assertEqual(['4'], self.play.error)
+        self.assertEqual(0, self.play.run_batted_in)
+
+        self.play.parse('E4/G4', '3-4;1-2;0-1')
+        self.assertEqual(0, self.play.num_out)
+        self.assertEqual(1, self.play.num_run)
+        self.assertEqual([], self.play.put_out)
+        self.assertEqual([], self.play.assist)
+        self.assertEqual(['4'], self.play.error)
+        self.assertEqual(0, self.play.run_batted_in)
+
+        self.play.parse('WP', '3-4;1-2')
+        self.assertEqual(0, self.play.num_out)
+        self.assertEqual(1, self.play.num_run)
+        self.assertEqual([], self.play.put_out)
+        self.assertEqual([], self.play.assist)
+        self.assertEqual([], self.play.error)
+        self.assertEqual(0, self.play.run_batted_in)
+
     def test_batting(self):
         # p = Player('bettm001', self.cur)
         # p.parse_batting()
         # p.batting.print_stats()
-
+        # TODO: implement this stub
         self.assertTrue(True)
 
 

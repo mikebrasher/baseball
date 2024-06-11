@@ -5,11 +5,13 @@ class Play:
     def __init__(self):
         # direct play codes
         self.balk = 0
+        self.batter_out = 0
         self.catcher_interference = 0
         self.caught_stealing = 0
         self.defensive_indifference = 0
         self.double = 0
         self.dropped_third_strike = 0
+        self.error_batter_on_base = 0
         self.error_on_foul_fly_ball = 0
         self.fielders_choice = 0
         self.ground_rule_double = 0
@@ -61,11 +63,13 @@ class Play:
     def reset(self):
         # direct play codes
         self.balk = 0
+        self.batter_out = 0
         self.catcher_interference = 0
         self.caught_stealing = 0
         self.defensive_indifference = 0
         self.double = 0
         self.dropped_third_strike = 0
+        self.error_batter_on_base = 0
         self.error_on_foul_fly_ball = 0
         self.fielders_choice = 0
         self.ground_rule_double = 0
@@ -164,6 +168,7 @@ class Play:
         events = main_play.strip(self.separator).split(self.separator)
         first = events[0]
         if len(first) > 0 and first[0].isdigit():
+            self.batter_out = 1
             if first == '99':
                 # code for unknown play
                 # don't award putout or assists
@@ -174,6 +179,7 @@ class Play:
                     if error_idx >= 0:
                         self.error.append(fielders[error_idx + 1])
                         self.assist += list(fielders[:error_idx])
+                        self.error_batter_on_base = 1
                     else:
                         self.put_out.append(fielders[-1])
                         self.assist += list(fielders[:-1])
@@ -181,7 +187,6 @@ class Play:
             self.wild_pitch = 1
         elif first.find('HR') == 0 or first.find('H') == 0:
             self.home_run = 1
-            self.run_batted_in += 1
             self.score.append('B')
         elif first.find('HP') == 0:
             self.hit_by_pitch = 1
@@ -201,6 +206,7 @@ class Play:
             self.passed_ball = 1
         elif first.find('E') == 0:
             self.error.append(first[1])
+            self.error_batter_on_base = 1
         elif first.find('SB') == 0:  # must be before S
             for advance in first.split(';'):
                 stolen_base_idx = advance.find('SB')
@@ -308,12 +314,15 @@ class Play:
             if (advance.find('3-4') >= 0) or advance.find('3-H') >= 0:
                 self.score.append('3')
 
+            # count all scores for runs
+            self.num_run = len(self.score)
+
             # for run batted in
             # don't include ground into double play
             # don't include errors
             # don't include wild pitches
             if self.ground_double_play == 0 and len(self.error) == 0 and self.wild_pitch == 0:
-                self.run_batted_in += 1
+                self.run_batted_in = self.num_run
 
     def parse(self, play, base_running=''):
         self.reset()
@@ -327,103 +336,60 @@ class Play:
 
         self.parse_base_running(base_running)
 
+        # include all putouts from fielding play and base running
         self.num_out = len(self.put_out) + self.strike_out
-        self.num_run = len(self.score)
 
 
 class Batting:
     def __init__(self):
-        # at bat enum
+        self.play = Play()
+
+        # accumulate statistics
         self.sacrifice_hit = 0
         self.sacrifice_fly = 0
         self.out = 0
-        self.error = 0
-        self.stolen_base = 0
+        self.strike_out = 0
         self.single = 0
         self.double = 0
         self.triple = 0
         self.home_run = 0
+        self.hit_by_pitch = 0
+        self.error_batter_on_base = 0
         self.walk = 0
-        self.strike_out = 0
         self.intentional_walk = 0
         self.fielders_choice = 0
-        self.no_play = 0
-        self.hit_by_pitch = 0
-        self.passed_ball = 0
-        self.error_on_foul_fly_ball = 0
-        self.defensive_indifference = 0
-        self.wild_pitch = 0
-        self.unknown = 0
+        self.run_batted_in = 0
 
         # derived stats
-        self.run = 0
         self.hit = 0
         self.at_bat = 0
-        self.run_batted_in = 0
         self.batting_average = 0.0
         self.on_base_percentage = 0.0
         self.slugging = 0.0
 
-    def parse_at_bat(self, play, base_running):
-        events = play.split('/')
-        first = events[0]
-        is_out, _, _ = parse_play(first)
-        if is_out:
-            if events[1] == 'SH':
-                self.sacrifice_hit += 1
-            elif events[1] == 'SF':
-                self.sacrifice_fly += 1
-            else:
-                self.out += 1
-        elif first.find('E') == 0:
-            self.error += 1
-        elif first.find('SB') == 0:
-            self.stolen_base += 1
-        elif first == 'WP':
-            self.wild_pitch += 1
-        elif first == 'DI':
-            self.defensive_indifference += 1  # no attempt to prevent stolen base
-        elif first.find('S') == 0:
-            self.single += 1
-        elif first.find('D') == 0:
-            self.double += 1
-        elif first.find('T') == 0:
-            self.triple += 1
-        elif first == 'H' or first == 'HR':
-            self.run += 1
-            self.run_batted_in += 1
-            self.home_run += 1
-        elif first.find('W') == 0:
-            self.walk += 1
-        elif first.find('K') == 0:
-            self.strike_out += 1
-        elif first == 'I' or first == 'IW':
-            self.intentional_walk += 1
-        elif first.find('FC') == 0:
-            self.fielders_choice += 1
-        elif first == 'NP':
-            self.no_play += 1  # for substitutions
-        elif first == 'HP':
-            self.hit_by_pitch += 1
-        elif first == 'PB':
-            self.passed_ball += 1
-        elif first.find('FLE') == 0:
-            self.error_on_foul_fly_ball += 1
-        else:
-            self.unknown += 1
+    def parse_at_bat(self, the_play, base_running):
+        self.play.parse(the_play, base_running)
+
+        self.sacrifice_hit += self.play.sacrifice_hit
+        self.sacrifice_fly += self.play.sacrifice_fly
+        if self.play.sacrifice_hit == 0 or self.play.sacrifice_fly == 0:
+            # don't count sacs as out for at bat
+            self.out += self.play.batter_out
+
+        self.strike_out += self.play.strike_out
+        self.single += self.play.single
+        self.double += self.play.double
+        self.triple += self.play.triple
+        self.home_run += self.play.home_run
+        self.hit_by_pitch += self.play.hit_by_pitch
+        self.error_batter_on_base += self.play.error_batter_on_base
+        self.walk += self.play.walk
+        self.intentional_walk += self.play.intentional_walk
+        self.fielders_choice += self.play.fielders_choice
+        self.run_batted_in += self.play.run_batted_in
 
         self.hit = self.single + self.double + self.triple + self.home_run
-        self.at_bat = self.hit + self.strike_out + self.out + self.error + self.fielders_choice
-
-        # don't include ground into double play
-        # don't include errors on fielding the hit
-        # don't include wild pitches
-        if 'GDP' not in events and first.find('E') < 0 and first.find('WP') < 0:
-            # or on the play at home, i.e. '1-4(E6)'
-            rbi_list = ['1-4', '2-4', '3-4']
-            for advance in base_running.split(';'):
-                if advance in rbi_list:
-                    self.run_batted_in += 1
+        self.at_bat = self.strike_out + self.out + self.hit + self.error_batter_on_base + self.fielders_choice
 
         # hits divided by at bats (H/AB)
         if self.at_bat > 0:
@@ -603,7 +569,9 @@ class Pitching:
 
 class Fielding:
     def __init__(self):
-        # pitching even enum
+        self.play = Play()
+
+        # accumulate statistics
         self.sacrifice_hit = 0
         self.sacrifice_fly = 0
         self.out_played = 0
