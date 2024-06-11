@@ -1,21 +1,334 @@
 import re
 
 
-def parse_out(play):
-    is_out = False
-    put_out = []
-    assist = []
-    delim = '|'
-    sub_play = re.sub(r'\([B1234]\)', delim, play)
-    sub_play = sub_play.strip(delim)
-    events = sub_play.split(delim)
-    first = events[0]
-    if first.isdigit():
-        is_out = True
-        for e in events:
-            put_out.append(e[-1])
-            assist += list(e[:-1])
-    return is_out, put_out, assist
+class Play:
+    def __init__(self):
+        # direct play codes
+        self.balk = 0
+        self.catcher_interference = 0
+        self.caught_stealing = 0
+        self.defensive_indifference = 0
+        self.double = 0
+        self.dropped_third_strike = 0
+        self.error_on_foul_fly_ball = 0
+        self.fielders_choice = 0
+        self.ground_rule_double = 0
+        self.home_run = 0
+        self.hit_by_pitch = 0
+        self.intentional_walk = 0
+        self.no_play = 0
+        self.other_advance = 0
+        self.passed_ball = 0
+        self.single = 0
+        self.strike_out = 0
+        self.triple = 0
+        self.unknown = 0
+        self.walk = 0
+        self.wild_pitch = 0
+
+        # modifier codes
+        self.bunt_grounder = 0
+        self.bunt_pop_up = 0
+        self.double_play = 0
+        self.fly_ball = 0
+        self.force_out = 0
+        self.ground_ball = 0
+        self.ground_double_play = 0
+        self.ground_triple_play = 0
+        self.line_double_play = 0
+        self.line_drive = 0
+        self.line_triple_play = 0
+        self.pop_up = 0
+        self.sacrifice_fly = 0
+        self.sacrifice_hit = 0
+        self.triple_play = 0
+
+        # derived statistics
+        self.put_out = []
+        self.assist = []
+        self.error = []
+        self.score = []
+        self.stolen_base = []
+        self.pick_off = []
+        self.caught_stealing = []
+        self.num_out = 0
+        self.num_run = 0
+        self.run_batted_in = 0
+
+        # other members
+        self.separator = '|'
+
+    def reset(self):
+        # direct play codes
+        self.balk = 0
+        self.catcher_interference = 0
+        self.caught_stealing = 0
+        self.defensive_indifference = 0
+        self.double = 0
+        self.dropped_third_strike = 0
+        self.error_on_foul_fly_ball = 0
+        self.fielders_choice = 0
+        self.ground_rule_double = 0
+        self.ground_double_play = 0
+        self.home_run = 0
+        self.hit_by_pitch = 0
+        self.intentional_walk = 0
+        self.no_play = 0
+        self.other_advance = 0
+        self.passed_ball = 0
+        self.sacrifice_fly = 0
+        self.sacrifice_hit = 0
+        self.single = 0
+        self.strike_out = 0
+        self.triple = 0
+        self.unknown = 0
+        self.walk = 0
+        self.wild_pitch = 0
+
+        # modifier codes
+        self.bunt_grounder = 0
+        self.bunt_pop_up = 0
+        self.double_play = 0
+        self.fly_ball = 0
+        self.force_out = 0
+        self.ground_ball = 0
+        self.ground_double_play = 0
+        self.ground_triple_play = 0
+        self.line_double_play = 0
+        self.line_drive = 0
+        self.line_triple_play = 0
+        self.pop_up = 0
+        self.sacrifice_fly = 0
+        self.sacrifice_hit = 0
+        self.triple_play = 0
+
+        # derived statistics
+        self.put_out = []
+        self.assist = []
+        self.error = []
+        self.score = []
+        self.stolen_base = []
+        self.pick_off = []
+        self.caught_stealing = []
+        self.num_out = 0
+        self.num_run = 0
+        self.run_batted_in = 0
+
+    # assume pick off or caught stealing is present
+    def parse_pick_off_caught_stealing(self, play, fielders):
+        combo_idx = play.find('POCS')
+        pick_off_idx = play.find('PO')
+        caught_stealing_idx = play.find('CS')
+        if combo_idx >= 0:
+            runner = play[combo_idx + 4]
+            self.pick_off.append(runner)
+            self.caught_stealing.append(runner)
+        elif pick_off_idx >= 0:
+            self.pick_off.append(play[pick_off_idx + 2])
+        elif caught_stealing_idx >= 0:
+            self.caught_stealing.append(play[caught_stealing_idx + 2])
+
+        for f in fielders:
+            error_idx = f.find('E')
+            if error_idx >= 0:
+                self.error.append(f[error_idx + 1])
+                self.assist += list(f[:error_idx])
+            else:
+                self.put_out.append(f[-1])
+                self.assist += list(f[:-1])
+
+    def parse_extra_event(self, play, fielders):
+        # the extra event can be one of SB%, CS%, OA, PO%, PB, WP and E$.
+        if play.find('PO') >= 0 or play.find('CS') >= 0:
+            self.parse_pick_off_caught_stealing(play, fielders)
+        elif play.find('SB') >= 0:
+            stolen_base_idx = play.find('SB')
+            self.stolen_base.append(play[stolen_base_idx + 2])
+        elif play.find('OA') >= 0:
+            self.other_advance = 1
+        elif play.find('PB') >= 0:
+            self.passed_ball = 1
+        elif play.find('WP') >= 0:
+            self.wild_pitch = 1
+        elif play.find('E') >= 0:
+            error_idx = play.find('E')
+            self.error.append(play[error_idx + 1])
+        else:
+            self.unknown = 1
+
+    def parse_main_play(self, main_play):
+        # outs coded as integer position codes, last one gets a put out, every other gets an assist
+        # i.e. 63 for shortstop to first base, or 64(1)43 for double play
+        targets = re.findall(r'\((.*?)\)', main_play)
+        main_play = re.sub(r'\([B1234]*?\)', self.separator, main_play)
+        events = main_play.strip(self.separator).split(self.separator)
+        first = events[0]
+        if len(first) > 0 and first[0].isdigit():
+            if first == '99':
+                # code for unknown play
+                # don't award putout or assists
+                self.unknown = 1
+            else:
+                for fielders in events:
+                    error_idx = fielders.find('E')
+                    if error_idx >= 0:
+                        self.error.append(fielders[error_idx + 1])
+                        self.assist += list(fielders[:error_idx])
+                    else:
+                        self.put_out.append(fielders[-1])
+                        self.assist += list(fielders[:-1])
+        elif first.find('WP') == 0:  # parse longer codes first, must be before W
+            self.wild_pitch = 1
+        elif first.find('HR') == 0 or first.find('H') == 0:
+            self.home_run = 1
+            self.run_batted_in += 1
+            self.score.append('B')
+        elif first.find('HP') == 0:
+            self.hit_by_pitch = 1
+        elif first.find('IW') == 0 or first.find('I') == 0:
+            self.intentional_walk = 1
+        elif first.find('NP') == 0:
+            self.no_play = 1  # for substitutions
+        elif first.find('BK') == 0:
+            self.balk = 1
+        elif first.find('DGR') == 0:  # must occur before D
+            self.ground_rule_double = 1
+        elif first.find('DI') == 0:  # must occur before D
+            self.defensive_indifference += 1  # no attempt to prevent stolen base
+        elif first.find('PO') == 0 or first.find('CS') == 0:  # must occur before C
+            self.parse_pick_off_caught_stealing(first, targets)
+        elif first.find('PB') == 0:
+            self.passed_ball = 1
+        elif first.find('E') == 0:
+            self.error.append(first[1])
+        elif first.find('SB') == 0:  # must be before S
+            for advance in first.split(';'):
+                stolen_base_idx = advance.find('SB')
+                self.stolen_base.append(advance[stolen_base_idx + 2])
+        elif first.find('K') == 0:
+            sub_event = first.split('+')[0]
+            if sub_event == 'K':
+                self.strike_out = 1
+            else:
+                self.dropped_third_strike = 1
+                self.put_out.append(sub_event[-1])
+                self.assist += list(sub_event[1:-1])
+        elif first.find('S') == 0:
+            self.single = 1
+        elif first.find('D') == 0:
+            self.double = 1
+        elif first.find('T') == 0:
+            self.triple = 1
+        elif first.find('W') == 0:
+            self.walk = 1
+        elif first.find('FC') == 0:
+            self.fielders_choice = 1
+        elif first.find('FLE') == 0:
+            self.error_on_foul_fly_ball = 1
+            self.error.append(first[3])
+        elif first.find('C') == 0:
+            self.catcher_interference = 1
+        elif first.find('OA') == 0:
+            self.other_advance = 1
+        else:
+            self.unknown = 1
+
+        # parse any additional events present
+        if first.find('+') >= 0:
+            self.parse_extra_event(first, targets)
+
+    def parse_modifier(self, modifier):
+        if modifier.find('FO') == 0:
+            self.force_out = 1
+        elif modifier.find('GDP') == 0:
+            self.ground_ball = 1
+            self.double_play = 1
+            self.ground_double_play = 1
+        elif modifier.find('LDP') == 0:
+            self.line_drive = 1
+            self.double_play = 1
+            self.line_double_play = 1
+        elif modifier.find('GTP') == 0:
+            self.ground_ball = 1
+            self.triple_play = 1
+            self.ground_triple_play = 1
+        elif modifier.find('LTP') == 0:
+            self.line_drive = 1
+            self.triple_play = 1
+            self.line_triple_play = 1
+        elif modifier.find('SF') == 0:
+            self.sacrifice_fly = 1
+        elif modifier.find('SH') == 0:
+            self.sacrifice_hit = 1
+        elif modifier.find('DP') == 0:
+            self.double_play = 1
+        elif modifier.find('TP') == 0:
+            self.triple_play = 1
+        elif modifier.find('E') == 0:
+            # appears as part of a C/E2 for catcher interference
+            self.error.append(modifier[1])
+        elif modifier.find('G') == 0:
+            self.ground_ball = 1
+        elif modifier.find('L') == 0:
+            self.line_drive = 1
+        elif modifier.find('P') == 0:
+            self.pop_up = 1
+        elif modifier.find('F') == 0:
+            self.fly_ball = 1
+        elif modifier.find('BG') == 0:
+            self.bunt_grounder = 1
+        elif modifier.find('BP') == 0:
+            self.bunt_pop_up = 1
+
+    def parse_base_running(self, base_running):
+        for advance in base_running.split(';'):
+            # errors on base running, e.g. 1-2(E6), list position which incurred error
+            error_idx = advance.find('E')
+            if error_idx >= 0:
+                self.error.append(advance[error_idx + 1])
+
+            if advance.find('X') >= 0:
+                # outs on base running, e.g. 3X4(52), list positions assigned assist and putout
+                self.num_out += 1
+                fielders = re.findall(r'\((.*?)\)', advance)
+                for f in fielders:
+                    self.put_out.append(f[-1])
+                    self.assist += list(f[:-1])
+
+            # score runs regardless of errors
+            # score from first
+            if (advance.find('1-4') >= 0) or advance.find('1-H') >= 0:
+                self.score.append('1')
+
+            # score from second
+            if (advance.find('2-4') >= 0) or advance.find('2-H') >= 0:
+                self.score.append('2')
+
+            # score from third
+            if (advance.find('3-4') >= 0) or advance.find('3-H') >= 0:
+                self.score.append('3')
+
+            # for run batted in
+            # don't include ground into double play
+            # don't include errors
+            # don't include wild pitches
+            if self.ground_double_play == 0 and len(self.error) == 0 and self.wild_pitch == 0:
+                self.run_batted_in += 1
+
+    def parse(self, play, base_running=''):
+        self.reset()
+
+        # play is split into codes
+        # main_play/modifier/hit_description
+        codes = play.split('/')
+        self.parse_main_play(codes[0])
+        for modifier in codes[1:]:
+            self.parse_modifier(modifier)
+
+        self.parse_base_running(base_running)
+
+        self.num_out = len(self.put_out) + self.strike_out
+        self.num_run = len(self.score)
 
 
 class Batting:
@@ -54,7 +367,7 @@ class Batting:
     def parse_at_bat(self, play, base_running):
         events = play.split('/')
         first = events[0]
-        is_out, _, _ = parse_out(first)
+        is_out, _, _ = parse_play(first)
         if is_out:
             if events[1] == 'SH':
                 self.sacrifice_hit += 1
@@ -192,7 +505,7 @@ class Pitching:
     def parse_match_up(self, play, base_running, inning, vis_score, home_score, outs):
         events = play.split('/')
         first = events[0]
-        is_out, put_out, _ = parse_out(first)
+        is_out, put_out, _ = parse_play(first)
         curr_out = self.out
         curr_strike_out = self.strike_out
         if is_out:
@@ -328,7 +641,7 @@ class Fielding:
     def parse_play(self, play, base_running, position, inning, vis_score, home_score, outs):
         events = play.split('/')
         first = events[0]
-        is_out, put_out, assist = parse_out(first)
+        is_out, put_out, assist = parse_play(first)
         curr_out = self.out_played
         curr_strike_out = self.strike_out
         if is_out:
@@ -390,11 +703,12 @@ class Fielding:
                     self.error += 1
             if advance.find('X') >= 0:
                 self.out_played += 1
-                fielders = re.search(r'\((.*?)\)', advance).group(1)
-                if fielders[-1] == position:
-                    self.put_out += 1
-                elif position in list(fielders[:-1]):
-                    self.assist += 1
+                fielders = re.findall(r'\((.*?)\)', advance)
+                for f in fielders:
+                    if f[-1] == position:
+                        self.put_out += 1
+                    elif position in list(f[:-1]):
+                        self.assist += 1
 
         self.inning_at_position = (self.out_played + self.strike_out + self.pick_off + self.caught_stealing) / 3.0
 
