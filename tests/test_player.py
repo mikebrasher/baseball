@@ -1,13 +1,11 @@
 import unittest
 import sqlite3
-from baseball.player import Player, Play
+from baseball.player import Play, Batting, Player
 
 
-class TestPlayer(unittest.TestCase):
+class TestPlay(unittest.TestCase):
 
     def setUp(self):
-        self.con = sqlite3.connect('../seasons.db')
-        self.cur = self.con.cursor()
         self.play = Play()
 
     def test_empty_play(self):
@@ -185,6 +183,7 @@ class TestPlayer(unittest.TestCase):
         self.assertEqual([], self.play.put_out)
         self.assertEqual([], self.play.assist)
         self.assertEqual([], self.play.error)
+        self.assertEqual(1, self.play.double)
         self.assertEqual(1, self.play.ground_rule_double)
 
     def test_error_batter_on_base(self):
@@ -593,6 +592,16 @@ class TestPlayer(unittest.TestCase):
         self.assertEqual([], self.play.error)
         self.assertEqual(1, self.play.wild_pitch)
 
+    def test_hit_by_pitch(self):
+        self.play.parse('HP')
+        self.assertEqual(0, self.play.num_out)
+        self.assertEqual(0, self.play.num_run)
+        self.assertEqual([], self.play.put_out)
+        self.assertEqual([], self.play.assist)
+        self.assertEqual([], self.play.error)
+        self.assertEqual(1, self.play.hit_by_pitch)
+        self.assertEqual(0, self.play.home_run)
+
     def test_pick_off(self):
         self.play.parse('PO2(14)')
         self.assertEqual(1, self.play.num_out)
@@ -713,12 +722,442 @@ class TestPlayer(unittest.TestCase):
         self.assertEqual([], self.play.error)
         self.assertEqual(0, self.play.run_batted_in)
 
-    def test_batting(self):
-        # p = Player('bettm001', self.cur)
-        # p.parse_batting()
-        # p.batting.print_stats()
-        # TODO: implement this stub
-        self.assertTrue(True)
+
+class TestBatting(unittest.TestCase):
+
+    def setUp(self):
+        self.batting = Batting()
+
+    def test_sacrifice(self):
+        at_bats = (
+            ('3/SH/BG5S', '2-3;1-2'),
+            ('8/SF/F89D', '3-4'),
+            ('13/SH/BG1S-', '1-2'),
+            ('9/SF/L9D+', '3-4;2-3'),
+            ('7/SF/DP/F7L', '3-4;1X2(724)'),
+        )
+        for the_play, base_running in at_bats:
+            self.batting.parse_at_bat(the_play, base_running)
+
+        self.assertEqual(2, self.batting.sacrifice_hit)
+        self.assertEqual(3, self.batting.sacrifice_fly)
+        self.assertEqual(0, self.batting.at_bat)
+
+    def test_strike_out(self):
+        at_bats = (
+            ('K', ''),
+            ('K', ''),
+        )
+        for the_play, base_running in at_bats:
+            self.batting.parse_at_bat(the_play, base_running)
+
+        self.assertEqual(2, self.batting.strike_out)
+
+    def test_single(self):
+        at_bats = (
+            ('S68/G6', '3-4;1-2'),
+            ('S7/G6+', '3-4;2-4;1-4'),
+        )
+        for the_play, base_running in at_bats:
+            self.batting.parse_at_bat(the_play, base_running)
+
+        self.assertEqual(2, self.batting.single)
+
+    def test_double(self):
+        at_bats = (
+            ('D7/L7L+', ''),
+            ('D9/G3', '1-3'),
+            ('DGR/F9D', ''),
+        )
+        for the_play, base_running in at_bats:
+            self.batting.parse_at_bat(the_play, base_running)
+
+        self.assertEqual(3, self.batting.double)
+
+    def test_triple(self):
+        at_bats = (
+            ('T7/L7L+', ''),
+            ('T39/G3+', ''),
+        )
+        for the_play, base_running in at_bats:
+            self.batting.parse_at_bat(the_play, base_running)
+
+        self.assertEqual(2, self.batting.triple)
+
+    def test_home_run(self):
+        at_bats = (
+            ('HR/F7D', ''),
+            ('HR/F78XD', ''),
+        )
+        for the_play, base_running in at_bats:
+            self.batting.parse_at_bat(the_play, base_running)
+
+        self.assertEqual(2, self.batting.home_run)
+
+    def test_hit_by_pitch(self):
+        at_bats = (
+            ('HP', ''),
+            ('HP', ''),
+        )
+        for the_play, base_running in at_bats:
+            self.batting.parse_at_bat(the_play, base_running)
+
+        self.assertEqual(2, self.batting.hit_by_pitch)
+
+    def test_error_batter_on_base(self):
+        at_bats = (
+            ('E4/TH/G6D', '0-1'),
+            ('E6/G6', '0-1'),
+        )
+        for the_play, base_running in at_bats:
+            self.batting.parse_at_bat(the_play, base_running)
+
+        self.assertEqual(2, self.batting.error_batter_on_base)
+
+    def test_walk(self):
+        at_bats = (
+            ('W', ''),
+            ('W', '1-2'),
+        )
+        for the_play, base_running in at_bats:
+            self.batting.parse_at_bat(the_play, base_running)
+
+        self.assertEqual(2, self.batting.walk)
+
+    def test_intentional_walk(self):
+        at_bats = (
+            ('IW', ''),
+            ('IW', '1-2'),
+        )
+        for the_play, base_running in at_bats:
+            self.batting.parse_at_bat(the_play, base_running)
+
+        self.assertEqual(2, self.batting.intentional_walk)
+
+    def test_fielders_choice(self):
+        at_bats = (
+            ('FC/G5', '3X4(52);1-2;0-1'),
+            ('FC/G6', '3X4(62);2-3;0-2'),
+        )
+        for the_play, base_running in at_bats:
+            self.batting.parse_at_bat(the_play, base_running)
+
+        self.assertEqual(2, self.batting.fielders_choice)
+
+    def test_run_batted_in(self):
+        at_bats = (
+            ('D7/G5', '3-4;2-4;1-4'),      # 3 RBI
+            ('HR/F9LD', '3-4;2-4;1-4'),    # 4 RBI
+            ('46(1)3/GDP/G4', '3-4'),      # excluded, ground double play
+            ('FC4/G4', '1-4(E4/T4);0-2'),  # excluded, fielder's choice
+            ('E4/G4', '3-4;1-2;0-1'),      # excluded, error on play
+            ('WP', '3-4;1-2'),             # excluded, wild pitch
+        )
+
+        for the_play, base_running in at_bats:
+            self.batting.parse_at_bat(the_play, base_running)
+
+        self.assertEqual(7, self.batting.run_batted_in)
+
+    def test_hit(self):
+        at_bats = (
+            ('S68/G6', '3-4;1-2'),     # single
+            ('D7/G5', '3-4;2-4;1-4'),  # double
+            ('T7/L7L+', ''),           # triple
+            ('HR/F7D', ''),            # home run
+        )
+
+        for the_play, base_running in at_bats:
+            self.batting.parse_at_bat(the_play, base_running)
+
+        self.assertEqual(4, self.batting.hit)
+
+    def test_at_bat(self):
+        # sac hit/fly not counted as an at bat
+        at_bats = (
+            ('3/SH/BG5S', '2-3;1-2'),    # sac hit
+            ('8/SF/F89D', '3-4'),        # sac fly
+            ('K', ''),                   # strike out
+            ('31/G34', ''),              # batter out
+            ('D6/P8', ''),               # hit
+            ('E6/G6M+', '2-3;0-1'),      # error, batter on base
+            ('FC/G56', '2X3(546);0-2'),  # fielder's choice
+        )
+        for the_play, base_running in at_bats:
+            self.batting.parse_at_bat(the_play, base_running)
+
+        self.assertEqual(1, self.batting.hit)
+        self.assertEqual(5, self.batting.at_bat)
+        self.assertAlmostEqual(0.2, self.batting.batting_average)
+
+    def test_on_base_percentage(self):
+        # sac hit/fly not counted as an at bat
+        at_bats = (
+            ('3/SH/BG5S', '2-3;1-2'),    # sac hit
+            ('8/SF/F89D', '3-4'),        # sac fly
+            ('K', ''),                   # strike out
+            ('31/G34', ''),              # batter out
+            ('D6/P8', ''),               # hit
+            ('E6/G6M+', '2-3;0-1'),      # error, batter on base
+            ('FC/G56', '2X3(546);0-2'),  # fielder's choice
+            ('W', ''),                   # walk
+            ('HP', ''),                  # hit by pitch
+        )
+        for the_play, base_running in at_bats:
+            self.batting.parse_at_bat(the_play, base_running)
+
+        #  times reached base (H + BB + HBP)
+        self.assertEqual(3, self.batting.times_reached_base)
+
+        #  at bats plus walks plus hit by pitch plus sacrifice flies (AB + BB + HBP + SF)
+        self.assertEqual(8, self.batting.at_bats_plus)
+
+        # times reached base / at bats plus
+        self.assertAlmostEqual(0.375, self.batting.on_base_percentage)
+
+    def test_slugging(self):
+        at_bats = (
+            ('S68/G6', '3-4;1-2'),     # single   = 1 base
+            ('D7/G5', '3-4;2-4;1-4'),  # double   = 2 bases
+            ('T7/L7L+', ''),           # triple   = 3 bases
+            ('HR/F7D', ''),            # home run = 4 bases
+        )
+
+        for the_play, base_running in at_bats:
+            self.batting.parse_at_bat(the_play, base_running)
+
+        # sum of 10 bases
+        self.assertEqual(10, self.batting.total_bases)
+
+        # total bases / at bat
+        self.assertAlmostEqual(2.5, self.batting.slugging)
+
+
+class TestPlayer(unittest.TestCase):
+
+    def setUp(self):
+        self.con = sqlite3.connect("../seasons.db")
+        self.cur = self.con.cursor()
+        self.delta = 5e-3
+
+    # baseball almanac doesn't seem to record hit by pitch, so some numbers are off
+    # https://www.baseball-almanac.com/players/hittinglogs.php?p=bettsmo01&y=2022
+    #                       AB	R	H	2B	3B	HR	RBI	BB	IBB	K	HBP	SH	SF	AVG     OBP	    SLG
+    #     April 2022 Totals 74 	19 	17 	2 	0 	3 	6 	13 	0 	16 	0 	0 	0 	.230 	.345 	.378
+    #       May 2022 Totals	114 31 	39 	10 	0 	12 	27 	13 	0 	19 	0 	0 	1 	.342 	.406 	.746
+    #      June 2022 Totals	57 	3 	11 	1 	0 	2 	7 	1 	0 	12 	0 	0 	0 	.193 	.207 	.316
+    #      July 2022 Totals	101 18 	26 	5 	1 	6 	12 	10 	0 	17 	0 	0 	1 	.257 	.321 	.505
+    #    August 2022 Totals	109 30 	36 	11 	1 	9 	18 	8 	0 	20 	0 	0 	1 	.330 	.373 	.697
+    # September 2022 Totals	104 14 	24 	10 	1 	3 	12 	9 	0 	17 	0 	0 	1 	.231 	.289 	.433
+    #   October 2022 Totals	13 	2 	2 	1 	0 	0 	0 	1 	0 	3 	0 	0 	0 	.154 	.214 	.231
+    #    2022 Yearly Totals 572 117 155 40 	3 	35 	82 	55 	0 	104 0 	0 	4 	.271 	.333 	.535
+    def test_batting_mookie_april_2022(self):
+        p = Player('bettm001', self.cur, year='2022', month='04')
+        p.parse_batting()
+
+        self.assertEqual(74, p.batting.at_bat)
+        # don't test runs, since it includes base running
+        self.assertEqual(17, p.batting.hit)
+        self.assertEqual(2, p.batting.double)
+        self.assertEqual(0, p.batting.triple)
+        self.assertEqual(3, p.batting.home_run)
+        self.assertEqual(6, p.batting.run_batted_in)
+        self.assertEqual(13, p.batting.walk)
+        self.assertEqual(0, p.batting.intentional_walk)
+        self.assertEqual(16, p.batting.strike_out)
+        self.assertEqual(1, p.batting.hit_by_pitch)
+        self.assertEqual(0, p.batting.sacrifice_hit)
+        self.assertEqual(0, p.batting.sacrifice_fly)
+        self.assertEqual(31, p.batting.times_reached_base)
+        self.assertEqual(88, p.batting.at_bats_plus)
+        self.assertEqual(28, p.batting.total_bases)
+        self.assertAlmostEqual(0.230, p.batting.batting_average, delta=self.delta)
+        self.assertAlmostEqual(0.352, p.batting.on_base_percentage, delta=self.delta)
+        self.assertAlmostEqual(0.378, p.batting.slugging, delta=self.delta)
+
+    #                       AB	R	H	2B	3B	HR	RBI	BB	IBB	K	HBP	SH	SF	AVG     OBP	    SLG
+    #       May 2022 Totals	114 31 	39 	10 	0 	12 	27 	13 	0 	19 	0 	0 	1 	.342 	.406 	.746
+    def test_batting_mookie_may_2022(self):
+        p = Player('bettm001', self.cur, year='2022', month='05')
+        p.parse_batting()
+
+        self.assertEqual(114, p.batting.at_bat)
+        # don't test runs, since it includes base running
+        self.assertEqual(39, p.batting.hit)
+        self.assertEqual(10, p.batting.double)
+        self.assertEqual(0, p.batting.triple)
+        self.assertEqual(12, p.batting.home_run)
+        self.assertEqual(27, p.batting.run_batted_in)
+        self.assertEqual(13, p.batting.walk)
+        self.assertEqual(0, p.batting.intentional_walk)
+        self.assertEqual(19, p.batting.strike_out)
+        self.assertEqual(1, p.batting.hit_by_pitch)
+        self.assertEqual(0, p.batting.sacrifice_hit)
+        self.assertEqual(1, p.batting.sacrifice_fly)
+        self.assertEqual(53, p.batting.times_reached_base)
+        self.assertEqual(129, p.batting.at_bats_plus)
+        self.assertEqual(85, p.batting.total_bases)
+        self.assertAlmostEqual(0.342, p.batting.batting_average, delta=self.delta)
+        self.assertAlmostEqual(0.411, p.batting.on_base_percentage, delta=self.delta)
+        self.assertAlmostEqual(0.746, p.batting.slugging, delta=self.delta)
+
+    #                       AB	R	H	2B	3B	HR	RBI	BB	IBB	K	HBP	SH	SF	AVG     OBP	    SLG
+    #      June 2022 Totals	57 	3 	11 	1 	0 	2 	7 	1 	0 	12 	0 	0 	0 	.193 	.207 	.316
+    def test_batting_mookie_june_2022(self):
+        p = Player('bettm001', self.cur, year='2022', month='06')
+        p.parse_batting()
+
+        self.assertEqual(57, p.batting.at_bat)
+        # don't test runs, since it includes base running
+        self.assertEqual(11, p.batting.hit)
+        self.assertEqual(1, p.batting.double)
+        self.assertEqual(0, p.batting.triple)
+        self.assertEqual(2, p.batting.home_run)
+        self.assertEqual(7, p.batting.run_batted_in)
+        self.assertEqual(1, p.batting.walk)
+        self.assertEqual(0, p.batting.intentional_walk)
+        self.assertEqual(12, p.batting.strike_out)
+        self.assertEqual(0, p.batting.hit_by_pitch)
+        self.assertEqual(0, p.batting.sacrifice_hit)
+        self.assertEqual(0, p.batting.sacrifice_fly)
+        self.assertEqual(12, p.batting.times_reached_base)
+        self.assertEqual(58, p.batting.at_bats_plus)
+        self.assertEqual(18, p.batting.total_bases)
+        self.assertAlmostEqual(0.193, p.batting.batting_average, delta=self.delta)
+        self.assertAlmostEqual(0.207, p.batting.on_base_percentage, delta=self.delta)
+        self.assertAlmostEqual(0.316, p.batting.slugging, delta=self.delta)
+
+    #                       AB	R	H	2B	3B	HR	RBI	BB	IBB	K	HBP	SH	SF	AVG     OBP	    SLG
+    #      July 2022 Totals	101 18 	26 	5 	1 	6 	12 	10 	0 	17 	0 	0 	1 	.257 	.321 	.505
+    def test_batting_mookie_july_2022(self):
+        p = Player('bettm001', self.cur, year='2022', month='07')
+        p.parse_batting()
+
+        self.assertEqual(101, p.batting.at_bat)
+        # don't test runs, since it includes base running
+        # 1 fielder's choice, so only 25 hits
+        self.assertEqual(25, p.batting.hit)
+        self.assertEqual(5, p.batting.double)
+        self.assertEqual(1, p.batting.triple)
+        self.assertEqual(6, p.batting.home_run)
+        self.assertEqual(12, p.batting.run_batted_in)
+        self.assertEqual(10, p.batting.walk)
+        self.assertEqual(0, p.batting.intentional_walk)
+        self.assertEqual(17, p.batting.strike_out)
+        self.assertEqual(2, p.batting.hit_by_pitch)
+        self.assertEqual(0, p.batting.sacrifice_hit)
+        self.assertEqual(1, p.batting.sacrifice_fly)
+        self.assertEqual(37, p.batting.times_reached_base)
+        self.assertEqual(114, p.batting.at_bats_plus)
+        self.assertEqual(50, p.batting.total_bases)
+        self.assertAlmostEqual(0.248, p.batting.batting_average, delta=self.delta)
+        self.assertAlmostEqual(0.325, p.batting.on_base_percentage, delta=self.delta)
+        self.assertAlmostEqual(0.495, p.batting.slugging, delta=self.delta)
+
+    #                       AB	R	H	2B	3B	HR	RBI	BB	IBB	K	HBP	SH	SF	AVG     OBP	    SLG
+    #    August 2022 Totals	109 30 	36 	11 	1 	9 	18 	8 	0 	20 	0 	0 	1 	.330 	.373 	.697
+    def test_batting_mookie_august_2022(self):
+        p = Player('bettm001', self.cur, year='2022', month='08')
+        p.parse_batting()
+
+        self.assertEqual(109, p.batting.at_bat)
+        # don't test runs, since it includes base running
+        self.assertEqual(36, p.batting.hit)
+        self.assertEqual(11, p.batting.double)
+        self.assertEqual(1, p.batting.triple)
+        self.assertEqual(9, p.batting.home_run)
+        self.assertEqual(18, p.batting.run_batted_in)
+        self.assertEqual(8, p.batting.walk)
+        self.assertEqual(0, p.batting.intentional_walk)
+        self.assertEqual(20, p.batting.strike_out)
+        self.assertEqual(2, p.batting.hit_by_pitch)
+        self.assertEqual(0, p.batting.sacrifice_hit)
+        self.assertEqual(1, p.batting.sacrifice_fly)
+        self.assertEqual(46, p.batting.times_reached_base)
+        self.assertEqual(120, p.batting.at_bats_plus)
+        self.assertEqual(76, p.batting.total_bases)
+        self.assertAlmostEqual(0.330, p.batting.batting_average, delta=self.delta)
+        self.assertAlmostEqual(0.383, p.batting.on_base_percentage, delta=self.delta)
+        self.assertAlmostEqual(0.697, p.batting.slugging, delta=self.delta)
+
+    #                       AB	R	H	2B	3B	HR	RBI	BB	IBB	K	HBP	SH	SF	AVG     OBP	    SLG
+    # September 2022 Totals	104 14 	24 	10 	1 	3 	12 	9 	0 	17 	0 	0 	1 	.231 	.289 	.433
+    def test_batting_mookie_september_2022(self):
+        p = Player('bettm001', self.cur, year='2022', month='09')
+        p.parse_batting()
+
+        self.assertEqual(104, p.batting.at_bat)
+        # don't test runs, since it includes base running
+        self.assertEqual(24, p.batting.hit)
+        self.assertEqual(10, p.batting.double)
+        self.assertEqual(1, p.batting.triple)
+        self.assertEqual(3, p.batting.home_run)
+        self.assertEqual(12, p.batting.run_batted_in)
+        self.assertEqual(9, p.batting.walk)
+        self.assertEqual(0, p.batting.intentional_walk)
+        self.assertEqual(17, p.batting.strike_out)
+        self.assertEqual(2, p.batting.hit_by_pitch)
+        self.assertEqual(0, p.batting.sacrifice_hit)
+        self.assertEqual(1, p.batting.sacrifice_fly)
+        self.assertEqual(35, p.batting.times_reached_base)
+        self.assertEqual(116, p.batting.at_bats_plus)
+        self.assertEqual(45, p.batting.total_bases)
+        self.assertAlmostEqual(0.231, p.batting.batting_average, delta=self.delta)
+        self.assertAlmostEqual(0.302, p.batting.on_base_percentage, delta=self.delta)
+        self.assertAlmostEqual(0.433, p.batting.slugging, delta=self.delta)
+
+    #                       AB	R	H	2B	3B	HR	RBI	BB	IBB	K	HBP	SH	SF	AVG     OBP	    SLG
+    #   October 2022 Totals	13 	2 	2 	1 	0 	0 	0 	1 	0 	3 	0 	0 	0 	.154 	.214 	.231
+    def test_batting_mookie_october_2022(self):
+        p = Player('bettm001', self.cur, year='2022', month='10')
+        p.parse_batting()
+
+        self.assertEqual(13, p.batting.at_bat)
+        # don't test runs, since it includes base running
+        self.assertEqual(2, p.batting.hit)
+        self.assertEqual(1, p.batting.double)
+        self.assertEqual(0, p.batting.triple)
+        self.assertEqual(0, p.batting.home_run)
+        self.assertEqual(0, p.batting.run_batted_in)
+        self.assertEqual(1, p.batting.walk)
+        self.assertEqual(0, p.batting.intentional_walk)
+        self.assertEqual(3, p.batting.strike_out)
+        self.assertEqual(0, p.batting.hit_by_pitch)
+        self.assertEqual(0, p.batting.sacrifice_hit)
+        self.assertEqual(0, p.batting.sacrifice_fly)
+        self.assertEqual(3, p.batting.times_reached_base)
+        self.assertEqual(14, p.batting.at_bats_plus)
+        self.assertEqual(3, p.batting.total_bases)
+        self.assertAlmostEqual(0.154, p.batting.batting_average, delta=self.delta)
+        self.assertAlmostEqual(0.214, p.batting.on_base_percentage, delta=self.delta)
+        self.assertAlmostEqual(0.231, p.batting.slugging, delta=self.delta)
+
+    #                       AB	R	H	2B	3B	HR	RBI	BB	IBB	K	HBP	SH	SF	AVG     OBP	    SLG
+    #    2022 Yearly Totals 572 117 155 40 	3 	35 	82 	55 	0 	104 0 	0 	4 	.271 	.333 	.535
+    def test_batting_mookie_total_2022(self):
+        p = Player('bettm001', self.cur, year='2022')
+        p.parse_batting()
+
+        self.assertEqual(572, p.batting.at_bat)
+        # don't test runs, since it includes base running
+        # 1 fielder's choice, so only 154 hits
+        self.assertEqual(154, p.batting.hit)
+        self.assertEqual(40, p.batting.double)
+        self.assertEqual(3, p.batting.triple)
+        self.assertEqual(35, p.batting.home_run)
+        self.assertEqual(82, p.batting.run_batted_in)
+        self.assertEqual(55, p.batting.walk)
+        self.assertEqual(0, p.batting.intentional_walk)
+        self.assertEqual(104, p.batting.strike_out)
+        self.assertEqual(8, p.batting.hit_by_pitch)
+        self.assertEqual(0, p.batting.sacrifice_hit)
+        self.assertEqual(4, p.batting.sacrifice_fly)
+        self.assertEqual(217, p.batting.times_reached_base)
+        self.assertEqual(639, p.batting.at_bats_plus)
+        self.assertEqual(305, p.batting.total_bases)
+        self.assertAlmostEqual(0.269, p.batting.batting_average, delta=self.delta)
+        self.assertAlmostEqual(0.340, p.batting.on_base_percentage, delta=self.delta)
+        self.assertAlmostEqual(0.533, p.batting.slugging, delta=self.delta)
 
 
 if __name__ == '__main__':
