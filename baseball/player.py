@@ -185,11 +185,11 @@ class Play:
                         self.assist += list(fielders[:-1])
         elif first.find('WP') == 0:  # parse longer codes first, must be before W
             self.wild_pitch = 1
+        elif first.find('HP') == 0:  # must occur before H
+            self.hit_by_pitch = 1
         elif first.find('HR') == 0 or first.find('H') == 0:
             self.home_run = 1
             self.score.append('B')
-        elif first.find('HP') == 0:
-            self.hit_by_pitch = 1
         elif first.find('IW') == 0 or first.find('I') == 0:
             self.intentional_walk = 1
         elif first.find('NP') == 0:
@@ -197,6 +197,7 @@ class Play:
         elif first.find('BK') == 0:
             self.balk = 1
         elif first.find('DGR') == 0:  # must occur before D
+            self.double = 1
             self.ground_rule_double = 1
         elif first.find('DI') == 0:  # must occur before D
             self.defensive_indifference += 1  # no attempt to prevent stolen base
@@ -358,13 +359,45 @@ class Batting:
         self.walk = 0
         self.intentional_walk = 0
         self.fielders_choice = 0
+        self.run = 0
         self.run_batted_in = 0
 
         # derived stats
         self.hit = 0
         self.at_bat = 0
         self.batting_average = 0.0
+        self.times_reached_base = 0
+        self.at_bats_plus = 0
         self.on_base_percentage = 0.0
+        self.total_bases = 0
+        self.slugging = 0.0
+
+    def reset(self):
+        # accumulate statistics
+        self.sacrifice_hit = 0
+        self.sacrifice_fly = 0
+        self.out = 0
+        self.strike_out = 0
+        self.single = 0
+        self.double = 0
+        self.triple = 0
+        self.home_run = 0
+        self.hit_by_pitch = 0
+        self.error_batter_on_base = 0
+        self.walk = 0
+        self.intentional_walk = 0
+        self.fielders_choice = 0
+        self.run = 0
+        self.run_batted_in = 0
+
+        # derived stats
+        self.hit = 0
+        self.at_bat = 0
+        self.batting_average = 0.0
+        self.times_reached_base = 0
+        self.at_bats_plus = 0
+        self.on_base_percentage = 0.0
+        self.total_bases = 0
         self.slugging = 0.0
 
     def parse_at_bat(self, the_play, base_running):
@@ -372,7 +405,7 @@ class Batting:
 
         self.sacrifice_hit += self.play.sacrifice_hit
         self.sacrifice_fly += self.play.sacrifice_fly
-        if self.play.sacrifice_hit == 0 or self.play.sacrifice_fly == 0:
+        if self.play.sacrifice_hit == 0 and self.play.sacrifice_fly == 0:
             # don't count sacs as out for at bat
             self.out += self.play.batter_out
 
@@ -386,6 +419,7 @@ class Batting:
         self.walk += self.play.walk
         self.intentional_walk += self.play.intentional_walk
         self.fielders_choice += self.play.fielders_choice
+        self.run += self.play.num_run
         self.run_batted_in += self.play.run_batted_in
 
         self.hit = self.single + self.double + self.triple + self.home_run
@@ -396,16 +430,16 @@ class Batting:
             self.batting_average = self.hit / self.at_bat
 
         #  times reached base (H + BB + HBP) divided by
-        times_reached_base = self.hit + self.walk + self.hit_by_pitch
+        self.times_reached_base = self.hit + self.walk + self.hit_by_pitch
         #  at bats plus walks plus hit by pitch plus sacrifice flies (AB + BB + HBP + SF)
-        at_bats_plus = self.at_bat + self.walk + self.hit_by_pitch + self.sacrifice_fly
-        if at_bats_plus > 0:
-            self.on_base_percentage = times_reached_base / at_bats_plus
+        self.at_bats_plus = self.at_bat + self.walk + self.hit_by_pitch + self.sacrifice_fly
+        if self.at_bats_plus > 0:
+            self.on_base_percentage = self.times_reached_base / self.at_bats_plus
 
         # total bases achieved on hits divided by at-bats (TB/AB)
-        total_bases = self.single + 2 * self.double + 3 * self.triple + 4 * self.home_run
+        self.total_bases = self.single + 2 * self.double + 3 * self.triple + 4 * self.home_run
         if self.at_bat > 0:
-            self.slugging = total_bases / self.at_bat
+            self.slugging = self.total_bases / self.at_bat
 
     def print_stats(self):
         header = ['AB', 'R', 'H', '2B', '3B', 'HR', 'RBI',
@@ -432,6 +466,11 @@ class Batting:
         str_data = ['{:5d}'.format(d) if type(d) is int else '{:5.3f}'.format(d) for d in data]
         print('\t'.join(header))
         print('\t'.join(str_data))
+
+
+class BaseRunning:
+    def __init__(self):
+        self.foo = 3
 
 
 class Pitching:
@@ -715,10 +754,13 @@ class Player:
         self.game = game
 
         self.batting = Batting()
+        self.base_running = BaseRunning()
         self.pitching = Pitching()
         self.fielding = Fielding()
 
-    def parse_at_bats(self):
+    def parse_batting(self):
+        self.batting.reset()
+
         cmd = """
         SELECT
            eventID, gameID, theplay, baserunning
@@ -789,10 +831,6 @@ class Player:
                         self.batting.run += 1
 
                     # print(row)
-
-    def parse_batting(self):
-        self.parse_at_bats()
-        self.parse_base_running()
 
     def parse_pitching(self):
         cmd = """
