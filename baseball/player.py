@@ -53,6 +53,7 @@ class Play:
         self.stolen_base = []
         self.pick_off = []
         self.caught_stealing = []
+        self.advance = []
         self.num_out = 0
         self.num_run = 0
         self.run_batted_in = 0
@@ -114,6 +115,7 @@ class Play:
         self.stolen_base = []
         self.pick_off = []
         self.caught_stealing = []
+        self.advance = []
         self.num_out = 0
         self.num_run = 0
         self.run_batted_in = 0
@@ -124,9 +126,18 @@ class Play:
         pick_off_idx = play.find('PO')
         caught_stealing_idx = play.find('CS')
         if combo_idx >= 0:
-            runner = play[combo_idx + 4]
+            stolen_base = play[combo_idx + 4]
+            # count POCS2 as pick off on first and stolen base for second, etc.
+            if stolen_base == '2':
+                runner = '1'
+            elif stolen_base == '3':
+                runner = '2'
+            elif stolen_base == 'H':
+                runner = '3'
+            else:
+                runner = 'B'
             self.pick_off.append(runner)
-            self.caught_stealing.append(runner)
+            self.caught_stealing.append(stolen_base)
         elif pick_off_idx >= 0:
             self.pick_off.append(play[pick_off_idx + 2])
         elif caught_stealing_idx >= 0:
@@ -303,6 +314,12 @@ class Play:
                     self.assist += list(f[:-1])
 
             # score runs regardless of errors
+            # batter scores
+            if (advance.find('0-4') >= 0) or advance.find('0-H') >= 0:
+                # add if not present, i.e. triple, score on error
+                if 'B' not in self.score:
+                    self.score.append('B')
+
             # score from first
             if (advance.find('1-4') >= 0) or advance.find('1-H') >= 0:
                 self.score.append('1')
@@ -315,6 +332,19 @@ class Play:
             if (advance.find('3-4') >= 0) or advance.find('3-H') >= 0:
                 self.score.append('3')
 
+            # runner's advance a base
+            # first to second
+            if advance.find('1-2') >= 0:
+                self.advance.append('1-2')
+
+            # first to third
+            if advance.find('1-3') >= 0:
+                self.advance.append('1-3')
+
+            # second to third
+            if advance.find('2-3') >= 0:
+                self.advance.append('2-3')
+
             # count all scores for runs
             self.num_run = len(self.score)
 
@@ -322,8 +352,13 @@ class Play:
             # don't include ground into double play
             # don't include errors
             # don't include wild pitches
+            # runs after error on fly ball are not officially counted, but ignoring this rule
             if self.ground_double_play == 0 and len(self.error) == 0 and self.wild_pitch == 0:
                 self.run_batted_in = self.num_run
+
+            # runs after an error on fly ball that would have been the third out
+            # are not officially counted as earned runs for RBI,
+            # but ignoring this rule for simplicity as it depends on previous events
 
     def parse(self, play, base_running=''):
         self.reset()
@@ -400,7 +435,7 @@ class Batting:
         self.total_bases = 0
         self.slugging = 0.0
 
-    def parse_at_bat(self, the_play, base_running):
+    def parse(self, the_play, base_running):
         self.play.parse(the_play, base_running)
 
         self.sacrifice_hit += self.play.sacrifice_hit
@@ -470,7 +505,95 @@ class Batting:
 
 class BaseRunning:
     def __init__(self):
-        self.foo = 3
+        self.play = Play()
+
+        self.caught_stealing = 0
+        self.caught_stealing_second = 0
+        self.caught_stealing_third = 0
+        self.caught_stealing_home = 0
+        self.pick_off = 0
+        self.pick_off_first = 0
+        self.pick_off_second = 0
+        self.pick_off_third = 0
+        self.score_from_base = 0
+        self.score_from_first = 0
+        self.score_from_second = 0
+        self.score_from_third = 0
+        self.stolen_base = 0
+        self.steal_second = 0
+        self.steal_third = 0
+        self.steal_home = 0
+        self.advance12 = 0
+        self.advance13 = 0
+        self.advance23 = 0
+
+    def reset(self):
+        self.caught_stealing = 0
+        self.caught_stealing_second = 0
+        self.caught_stealing_third = 0
+        self.caught_stealing_home = 0
+        self.pick_off = 0
+        self.pick_off_first = 0
+        self.pick_off_second = 0
+        self.pick_off_third = 0
+        self.score_from_base = 0
+        self.score_from_first = 0
+        self.score_from_second = 0
+        self.score_from_third = 0
+        self.stolen_base = 0
+        self.steal_second = 0
+        self.steal_third = 0
+        self.steal_home = 0
+        self.advance12 = 0
+        self.advance13 = 0
+        self.advance23 = 0
+
+    def parse(self, the_play, base_running, position):
+        self.play.parse(the_play, base_running)
+
+        for base in self.play.caught_stealing:
+            if base == '2' and position == '1':
+                self.caught_stealing_second += 1
+            elif base == '3' and position == '2':
+                self.caught_stealing_third += 1
+            elif (base == 'H' or base == '4') and position == '3':
+                self.caught_stealing_home += 1
+        self.caught_stealing = self.caught_stealing_second + self.caught_stealing_third + self.caught_stealing_home
+
+        for base in self.play.pick_off:
+            if base == position == '1':
+                self.pick_off_first += 1
+            elif base == position == '2':
+                self.pick_off_second += 1
+            elif base == position == '3':
+                self.pick_off_third += 1
+        self.pick_off = self.pick_off_first + self.pick_off_second + self.pick_off_third
+
+        for base in self.play.score:
+            if base == position == '1':
+                self.score_from_first += 1
+            elif base == position == '2':
+                self.score_from_second += 1
+            elif base == position == '3':
+                self.score_from_third += 1
+        self.score_from_base = self.score_from_first + self.score_from_second + self.score_from_third
+
+        for base in self.play.stolen_base:
+            if base == '2' and position == '1':
+                self.steal_second += 1
+            elif base == '3' and position == '2':
+                self.steal_third += 1
+            elif (base == 'H' or base == '4') and position == '3':
+                self.steal_home += 1
+        self.stolen_base = self.steal_second + self.steal_third + self.steal_home
+
+        for bases in self.play.advance:
+            if bases == '1-2' and position == '1':
+                self.advance12 += 1
+            elif bases == '1-3' and position == '1':
+                self.advance13 += 1
+            elif bases == '2-3' and position == '2':
+                self.advance23 += 1
 
 
 class Pitching:
@@ -786,10 +909,12 @@ class Player:
             if match_month and match_day and match_game:
                 play = row[2]
                 base_running = row[3]
-                self.batting.parse_at_bat(play, base_running)
+                self.batting.parse(play, base_running)
                 # print(row)
 
     def parse_base_running(self):
+        self.base_running.reset()
+
         cmd = """
         SELECT
            eventID, gameID, batterID, runner_1b, runner_2b, runner_3b, theplay, baserunning

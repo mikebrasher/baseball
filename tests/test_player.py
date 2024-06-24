@@ -1,6 +1,6 @@
 import unittest
 import sqlite3
-from baseball.player import Play, Batting, Player
+from baseball.player import Play, Batting, BaseRunning, Player
 
 
 class TestPlay(unittest.TestCase):
@@ -325,7 +325,7 @@ class TestPlay(unittest.TestCase):
         self.assertEqual(['2', '5'], self.play.assist)
         self.assertEqual([], self.play.error)
         self.assertEqual(1, self.play.strike_out)
-        self.assertEqual(['H'], self.play.pick_off)
+        self.assertEqual(['3'], self.play.pick_off)
         self.assertEqual(['H'], self.play.caught_stealing)
         self.assertEqual(1, self.play.double_play)
 
@@ -626,7 +626,7 @@ class TestPlay(unittest.TestCase):
         self.assertEqual(['1'], self.play.put_out)
         self.assertEqual(['1', '3', '6'], self.play.assist)
         self.assertEqual([], self.play.error)
-        self.assertEqual(['2'], self.play.pick_off)
+        self.assertEqual(['1'], self.play.pick_off)
         self.assertEqual(['2'], self.play.caught_stealing)
 
     def test_stolen_base(self):
@@ -679,6 +679,7 @@ class TestPlay(unittest.TestCase):
         self.assertEqual([], self.play.put_out)
         self.assertEqual([], self.play.assist)
         self.assertEqual([], self.play.error)
+        self.assertCountEqual(['1', '2', '3'], self.play.score)
         self.assertEqual(3, self.play.run_batted_in)
 
         self.play.parse('HR/F9LD', '3-4;2-4;1-4')
@@ -687,7 +688,45 @@ class TestPlay(unittest.TestCase):
         self.assertEqual([], self.play.put_out)
         self.assertEqual([], self.play.assist)
         self.assertEqual([], self.play.error)
+        self.assertCountEqual(['B', '1', '2', '3'], self.play.score)
         self.assertEqual(4, self.play.run_batted_in)
+
+        self.play.parse('HR/F89XD', '2-4;1-4;0-4')
+        self.assertEqual(0, self.play.num_out)
+        self.assertEqual(3, self.play.num_run)
+        self.assertEqual([], self.play.put_out)
+        self.assertEqual([], self.play.assist)
+        self.assertEqual([], self.play.error)
+        self.assertCountEqual(['B', '1', '2'], self.play.score)
+        self.assertEqual(3, self.play.run_batted_in)
+
+        self.play.parse('T7/L7LS', '2-4;1-4;0-4(E7/T4)')
+        self.assertEqual(0, self.play.num_out)
+        self.assertEqual(3, self.play.num_run)
+        self.assertEqual([], self.play.put_out)
+        self.assertEqual([], self.play.assist)
+        self.assertEqual(['7'], self.play.error)
+        self.assertCountEqual(['B', '1', '2'], self.play.score)
+        self.assertEqual(2, self.play.run_batted_in)
+
+    def test_runner_advance(self):
+        self.play.parse('S9/G34', '3-4;2-3;1-2')
+        self.assertCountEqual(['1-2', '2-3'], self.play.advance)
+
+        self.play.parse('S8/G4+', '1-3')
+        self.assertCountEqual(['1-3'], self.play.advance)
+
+        self.play.parse('63/G6', '2-3')
+        self.assertCountEqual(['2-3'], self.play.advance)
+
+        self.play.parse('WP', '2-3')
+        self.assertCountEqual(['2-3'], self.play.advance)
+
+        self.play.parse('HP', '3-4;2-3;1-2')
+        self.assertCountEqual(['1-2', '2-3'], self.play.advance)
+
+        self.play.parse('W', '2-3;1-2')
+        self.assertCountEqual(['1-2', '2-3'], self.play.advance)
 
     def test_run_batted_in_exclusion(self):
         self.play.parse('46(1)3/GDP/G4', '3-4')
@@ -737,7 +776,7 @@ class TestBatting(unittest.TestCase):
             ('7/SF/DP/F7L', '3-4;1X2(724)'),
         )
         for the_play, base_running in at_bats:
-            self.batting.parse_at_bat(the_play, base_running)
+            self.batting.parse(the_play, base_running)
 
         self.assertEqual(2, self.batting.sacrifice_hit)
         self.assertEqual(3, self.batting.sacrifice_fly)
@@ -749,7 +788,7 @@ class TestBatting(unittest.TestCase):
             ('K', ''),
         )
         for the_play, base_running in at_bats:
-            self.batting.parse_at_bat(the_play, base_running)
+            self.batting.parse(the_play, base_running)
 
         self.assertEqual(2, self.batting.strike_out)
 
@@ -759,7 +798,7 @@ class TestBatting(unittest.TestCase):
             ('S7/G6+', '3-4;2-4;1-4'),
         )
         for the_play, base_running in at_bats:
-            self.batting.parse_at_bat(the_play, base_running)
+            self.batting.parse(the_play, base_running)
 
         self.assertEqual(2, self.batting.single)
 
@@ -770,7 +809,7 @@ class TestBatting(unittest.TestCase):
             ('DGR/F9D', ''),
         )
         for the_play, base_running in at_bats:
-            self.batting.parse_at_bat(the_play, base_running)
+            self.batting.parse(the_play, base_running)
 
         self.assertEqual(3, self.batting.double)
 
@@ -780,7 +819,7 @@ class TestBatting(unittest.TestCase):
             ('T39/G3+', ''),
         )
         for the_play, base_running in at_bats:
-            self.batting.parse_at_bat(the_play, base_running)
+            self.batting.parse(the_play, base_running)
 
         self.assertEqual(2, self.batting.triple)
 
@@ -790,7 +829,7 @@ class TestBatting(unittest.TestCase):
             ('HR/F78XD', ''),
         )
         for the_play, base_running in at_bats:
-            self.batting.parse_at_bat(the_play, base_running)
+            self.batting.parse(the_play, base_running)
 
         self.assertEqual(2, self.batting.home_run)
 
@@ -800,7 +839,7 @@ class TestBatting(unittest.TestCase):
             ('HP', ''),
         )
         for the_play, base_running in at_bats:
-            self.batting.parse_at_bat(the_play, base_running)
+            self.batting.parse(the_play, base_running)
 
         self.assertEqual(2, self.batting.hit_by_pitch)
 
@@ -810,7 +849,7 @@ class TestBatting(unittest.TestCase):
             ('E6/G6', '0-1'),
         )
         for the_play, base_running in at_bats:
-            self.batting.parse_at_bat(the_play, base_running)
+            self.batting.parse(the_play, base_running)
 
         self.assertEqual(2, self.batting.error_batter_on_base)
 
@@ -820,7 +859,7 @@ class TestBatting(unittest.TestCase):
             ('W', '1-2'),
         )
         for the_play, base_running in at_bats:
-            self.batting.parse_at_bat(the_play, base_running)
+            self.batting.parse(the_play, base_running)
 
         self.assertEqual(2, self.batting.walk)
 
@@ -830,7 +869,7 @@ class TestBatting(unittest.TestCase):
             ('IW', '1-2'),
         )
         for the_play, base_running in at_bats:
-            self.batting.parse_at_bat(the_play, base_running)
+            self.batting.parse(the_play, base_running)
 
         self.assertEqual(2, self.batting.intentional_walk)
 
@@ -840,7 +879,7 @@ class TestBatting(unittest.TestCase):
             ('FC/G6', '3X4(62);2-3;0-2'),
         )
         for the_play, base_running in at_bats:
-            self.batting.parse_at_bat(the_play, base_running)
+            self.batting.parse(the_play, base_running)
 
         self.assertEqual(2, self.batting.fielders_choice)
 
@@ -855,7 +894,7 @@ class TestBatting(unittest.TestCase):
         )
 
         for the_play, base_running in at_bats:
-            self.batting.parse_at_bat(the_play, base_running)
+            self.batting.parse(the_play, base_running)
 
         self.assertEqual(7, self.batting.run_batted_in)
 
@@ -868,7 +907,7 @@ class TestBatting(unittest.TestCase):
         )
 
         for the_play, base_running in at_bats:
-            self.batting.parse_at_bat(the_play, base_running)
+            self.batting.parse(the_play, base_running)
 
         self.assertEqual(4, self.batting.hit)
 
@@ -884,7 +923,7 @@ class TestBatting(unittest.TestCase):
             ('FC/G56', '2X3(546);0-2'),  # fielder's choice
         )
         for the_play, base_running in at_bats:
-            self.batting.parse_at_bat(the_play, base_running)
+            self.batting.parse(the_play, base_running)
 
         self.assertEqual(1, self.batting.hit)
         self.assertEqual(5, self.batting.at_bat)
@@ -904,7 +943,7 @@ class TestBatting(unittest.TestCase):
             ('HP', ''),                  # hit by pitch
         )
         for the_play, base_running in at_bats:
-            self.batting.parse_at_bat(the_play, base_running)
+            self.batting.parse(the_play, base_running)
 
         #  times reached base (H + BB + HBP)
         self.assertEqual(3, self.batting.times_reached_base)
@@ -924,13 +963,144 @@ class TestBatting(unittest.TestCase):
         )
 
         for the_play, base_running in at_bats:
-            self.batting.parse_at_bat(the_play, base_running)
+            self.batting.parse(the_play, base_running)
 
         # sum of 10 bases
         self.assertEqual(10, self.batting.total_bases)
 
         # total bases / at bat
         self.assertAlmostEqual(2.5, self.batting.slugging)
+
+
+class TestBaseRunning(unittest.TestCase):
+
+    def setUp(self):
+        self.base_running = BaseRunning()
+
+    def test_caught_stealing(self):
+        at_bats = (
+            # the current runner was caught stealing
+            ('CS2(24)', '', '1'),
+            ('CS3(156)', '', '2'),
+            ('CS3(25)', '', '2'),
+            ('CSH(242)', '', '3'),
+            # some other runner was caught stealing
+            ('CS2(24)', '', '3'),
+            ('CS3(156)', '', '1'),
+            ('CS3(25)', '', '1'),
+            ('CSH(242)', '', '2'),
+        )
+        for the_play, base_running, position in at_bats:
+            self.base_running.parse(the_play, base_running, position)
+
+        self.assertEqual(4, self.base_running.caught_stealing)
+        self.assertEqual(1, self.base_running.caught_stealing_second)
+        self.assertEqual(2, self.base_running.caught_stealing_third)
+        self.assertEqual(1, self.base_running.caught_stealing_home)
+
+    def test_pick_off(self):
+        at_bats = (
+            # count these as pick off on runner
+            ('PO1(13)', '', '1'),
+            ('PO2(24)', '', '2'),
+            ('PO3(25)', '', '3'),
+            # error on pick off, still count against runner
+            ('PO1(E2/TH)', '3-4;2-3;1-2', '1'),
+            ('PO2(E1/TH)', '2-3', '2'),
+            ('PO3(E1/TH)', '3-4', '3'),
+            # successful pick off against some other runner
+            ('PO1(13)', '', '2'),
+            ('PO2(24)', '', '1'),
+            ('PO3(25)', '', '1'),
+        )
+        for the_play, base_running, position in at_bats:
+            self.base_running.parse(the_play, base_running, position)
+
+        self.assertEqual(6, self.base_running.pick_off)
+        self.assertEqual(2, self.base_running.pick_off_first)
+        self.assertEqual(2, self.base_running.pick_off_second)
+        self.assertEqual(2, self.base_running.pick_off_third)
+
+    def test_pick_off_caught_stealing(self):
+        at_bats = (
+            # pocs on runner
+            ('POCS2(134)', '', '1'),
+            ('POCS3(145)', '', '2'),
+            # error on throw, still count against runner
+            ('POCS2(13E4/TH)', '3-4', '1'),
+            # pocs on some other runner
+            ('POCS2(134)', '', '3'),
+            ('POCS3(145)', '', '1'),
+        )
+        for the_play, base_running, position in at_bats:
+            self.base_running.parse(the_play, base_running, position)
+
+        self.assertEqual(3, self.base_running.pick_off)
+        self.assertEqual(2, self.base_running.pick_off_first)
+        self.assertEqual(1, self.base_running.pick_off_second)
+        self.assertEqual(0, self.base_running.pick_off_third)
+
+        self.assertEqual(3, self.base_running.caught_stealing)
+        self.assertEqual(2, self.base_running.caught_stealing_second)
+        self.assertEqual(1, self.base_running.caught_stealing_third)
+        self.assertEqual(0, self.base_running.caught_stealing_home)
+
+    def test_score(self):
+        at_bats = (
+            ('S7/G6+', '3-4;2-4;1-4', '1'),
+            ('S7/G6+', '3-4;2-4;1-4', '2'),
+            ('S7/G6+', '3-4;2-4;1-4', '3'),
+            ('D7/L7LS', '2-4;1X4(7525)', '1'),
+            ('D7/L7LS', '2-4;1X4(7525)', '2'),
+        )
+        for the_play, base_running, position in at_bats:
+            self.base_running.parse(the_play, base_running, position)
+
+        self.assertEqual(4, self.base_running.score_from_base)
+        self.assertEqual(1, self.base_running.score_from_first)
+        self.assertEqual(2, self.base_running.score_from_second)
+        self.assertEqual(1, self.base_running.score_from_third)
+
+    def test_stolen_base(self):
+        at_bats = (
+            # runner stole base
+            ('SB2', '', '1'),
+            ('SB3', '', '2'),
+            ('SBH', '', '3'),
+            ('SBH;SB2', '', '1'),
+            ('SBH;SB2', '', '3'),
+            # some other runner stole
+            ('SB2', '', '3'),
+            ('SB3', '', '1'),
+            ('SBH', '', '1'),
+        )
+        for the_play, base_running, position in at_bats:
+            self.base_running.parse(the_play, base_running, position)
+
+        self.assertEqual(5, self.base_running.stolen_base)
+        self.assertEqual(2, self.base_running.steal_second)
+        self.assertEqual(1, self.base_running.steal_third)
+        self.assertEqual(2, self.base_running.steal_home)
+
+    def test_advance_base(self):
+        at_bats = (
+            ('5(2)/FO/G5', '1-2;0-1', '1'),
+            ('S9/G4', '1-2', '1'),
+            ('E6/G6', '1-2', '1'),
+            ('S8/G4+', '1-3', '1'),
+            ('E4/G34', '1-3;0-1', '1'),
+            ('53/G56S', '2-3', '2'),
+            ('S4/G4', '2-3;1-2', '1'),
+            ('S4/G4', '2-3;1-2', '2'),
+            ('WP', '3-4;2-3;1-2', '1'),
+            ('WP', '3-4;2-3;1-2', '2'),
+        )
+        for the_play, base_running, position in at_bats:
+            self.base_running.parse(the_play, base_running, position)
+
+        self.assertEqual(5, self.base_running.advance12)
+        self.assertEqual(2, self.base_running.advance13)
+        self.assertEqual(3, self.base_running.advance23)
 
 
 class TestPlayer(unittest.TestCase):
