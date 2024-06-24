@@ -507,6 +507,9 @@ class BaseRunning:
     def __init__(self):
         self.play = Play()
 
+        self.advance12 = 0
+        self.advance13 = 0
+        self.advance23 = 0
         self.caught_stealing = 0
         self.caught_stealing_second = 0
         self.caught_stealing_third = 0
@@ -523,11 +526,11 @@ class BaseRunning:
         self.steal_second = 0
         self.steal_third = 0
         self.steal_home = 0
-        self.advance12 = 0
-        self.advance13 = 0
-        self.advance23 = 0
 
     def reset(self):
+        self.advance12 = 0
+        self.advance13 = 0
+        self.advance23 = 0
         self.caught_stealing = 0
         self.caught_stealing_second = 0
         self.caught_stealing_third = 0
@@ -544,9 +547,6 @@ class BaseRunning:
         self.steal_second = 0
         self.steal_third = 0
         self.steal_home = 0
-        self.advance12 = 0
-        self.advance13 = 0
-        self.advance23 = 0
 
     def parse(self, the_play, base_running, position):
         self.play.parse(the_play, base_running)
@@ -944,17 +944,18 @@ class Player:
                     runner_1b = row[3]
                     runner_2b = row[4]
                     runner_3b = row[5]
+                    the_play = row[6]
                     base_running = row[7]
 
-                    if runner_1b == self.id and base_running.find('1-4') >= 0:
-                        self.batting.run += 1
-
-                    if runner_2b == self.id and base_running.find('2-4') >= 0:
-                        self.batting.run += 1
-
-                    if runner_3b == self.id and base_running.find('3-4') >= 0:
-                        self.batting.run += 1
-
+                    if runner_1b == self.id:
+                        position = '1'
+                    elif runner_2b == self.id:
+                        position = '2'
+                    elif runner_3b == self.id:
+                        position = '3'
+                    else:
+                        position = ''
+                    self.base_running.parse(the_play, base_running, position)
                     # print(row)
 
     def parse_pitching(self):

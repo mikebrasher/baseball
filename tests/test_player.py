@@ -1121,12 +1121,14 @@ class TestPlayer(unittest.TestCase):
     # September 2022 Totals	104 14 	24 	10 	1 	3 	12 	9 	0 	17 	0 	0 	1 	.231 	.289 	.433
     #   October 2022 Totals	13 	2 	2 	1 	0 	0 	0 	1 	0 	3 	0 	0 	0 	.154 	.214 	.231
     #    2022 Yearly Totals 572 117 155 40 	3 	35 	82 	55 	0 	104 0 	0 	4 	.271 	.333 	.535
-    def test_batting_mookie_april_2022(self):
-        p = Player('bettm001', self.cur, year='2022', month='04')
-        p.parse_batting()
 
+    #                       AB	R	H	2B	3B	HR	RBI	BB	IBB	K	HBP	SH	SF	AVG     OBP	    SLG
+    #     April 2022 Totals 74 	19 	17 	2 	0 	3 	6 	13 	0 	16 	0 	0 	0 	.230 	.345 	.378
+    def test_offense_mookie_april_2022(self):
+        p = Player('bettm001', self.cur, year='2022', month='04')
+
+        p.parse_batting()
         self.assertEqual(74, p.batting.at_bat)
-        # don't test runs, since it includes base running
         self.assertEqual(17, p.batting.hit)
         self.assertEqual(2, p.batting.double)
         self.assertEqual(0, p.batting.triple)
@@ -1145,14 +1147,36 @@ class TestPlayer(unittest.TestCase):
         self.assertAlmostEqual(0.352, p.batting.on_base_percentage, delta=self.delta)
         self.assertAlmostEqual(0.378, p.batting.slugging, delta=self.delta)
 
+        p.parse_base_running()
+        self.assertEqual(11, p.base_running.advance12)
+        self.assertEqual(3, p.base_running.advance13)
+        self.assertEqual(9, p.base_running.advance23)
+        self.assertEqual(0, p.base_running.caught_stealing)
+        self.assertEqual(0, p.base_running.caught_stealing_second)
+        self.assertEqual(0, p.base_running.caught_stealing_third)
+        self.assertEqual(0, p.base_running.caught_stealing_home)
+        self.assertEqual(0, p.base_running.pick_off)
+        self.assertEqual(0, p.base_running.pick_off_first)
+        self.assertEqual(0, p.base_running.pick_off_second)
+        self.assertEqual(0, p.base_running.pick_off_third)
+        self.assertEqual(16, p.base_running.score_from_base)
+        self.assertEqual(2, p.base_running.score_from_first)
+        self.assertEqual(6, p.base_running.score_from_second)
+        self.assertEqual(8, p.base_running.score_from_third)
+        self.assertEqual(3, p.base_running.stolen_base)
+        self.assertEqual(3, p.base_running.steal_second)
+        self.assertEqual(0, p.base_running.steal_third)
+        self.assertEqual(0, p.base_running.steal_home)
+
+        self.assertEqual(19, p.batting.home_run + p.base_running.score_from_base)
+
     #                       AB	R	H	2B	3B	HR	RBI	BB	IBB	K	HBP	SH	SF	AVG     OBP	    SLG
     #       May 2022 Totals	114 31 	39 	10 	0 	12 	27 	13 	0 	19 	0 	0 	1 	.342 	.406 	.746
-    def test_batting_mookie_may_2022(self):
+    def test_offense_mookie_may_2022(self):
         p = Player('bettm001', self.cur, year='2022', month='05')
-        p.parse_batting()
 
+        p.parse_batting()
         self.assertEqual(114, p.batting.at_bat)
-        # don't test runs, since it includes base running
         self.assertEqual(39, p.batting.hit)
         self.assertEqual(10, p.batting.double)
         self.assertEqual(0, p.batting.triple)
@@ -1171,14 +1195,36 @@ class TestPlayer(unittest.TestCase):
         self.assertAlmostEqual(0.411, p.batting.on_base_percentage, delta=self.delta)
         self.assertAlmostEqual(0.746, p.batting.slugging, delta=self.delta)
 
+        p.parse_base_running()
+        self.assertEqual(12, p.base_running.advance12)
+        self.assertEqual(5, p.base_running.advance13)
+        self.assertEqual(7, p.base_running.advance23)
+        self.assertEqual(1, p.base_running.caught_stealing)
+        self.assertEqual(0, p.base_running.caught_stealing_second)
+        self.assertEqual(1, p.base_running.caught_stealing_third)
+        self.assertEqual(0, p.base_running.caught_stealing_home)
+        self.assertEqual(1, p.base_running.pick_off)
+        self.assertEqual(0, p.base_running.pick_off_first)
+        self.assertEqual(1, p.base_running.pick_off_second)
+        self.assertEqual(0, p.base_running.pick_off_third)
+        self.assertEqual(19, p.base_running.score_from_base)
+        self.assertEqual(4, p.base_running.score_from_first)
+        self.assertEqual(6, p.base_running.score_from_second)
+        self.assertEqual(9, p.base_running.score_from_third)
+        self.assertEqual(1, p.base_running.stolen_base)
+        self.assertEqual(1, p.base_running.steal_second)
+        self.assertEqual(0, p.base_running.steal_third)
+        self.assertEqual(0, p.base_running.steal_home)
+
+        self.assertEqual(31, p.batting.home_run + p.base_running.score_from_base)
+
     #                       AB	R	H	2B	3B	HR	RBI	BB	IBB	K	HBP	SH	SF	AVG     OBP	    SLG
     #      June 2022 Totals	57 	3 	11 	1 	0 	2 	7 	1 	0 	12 	0 	0 	0 	.193 	.207 	.316
-    def test_batting_mookie_june_2022(self):
+    def test_offense_mookie_june_2022(self):
         p = Player('bettm001', self.cur, year='2022', month='06')
-        p.parse_batting()
 
+        p.parse_batting()
         self.assertEqual(57, p.batting.at_bat)
-        # don't test runs, since it includes base running
         self.assertEqual(11, p.batting.hit)
         self.assertEqual(1, p.batting.double)
         self.assertEqual(0, p.batting.triple)
@@ -1197,14 +1243,36 @@ class TestPlayer(unittest.TestCase):
         self.assertAlmostEqual(0.207, p.batting.on_base_percentage, delta=self.delta)
         self.assertAlmostEqual(0.316, p.batting.slugging, delta=self.delta)
 
+        p.parse_base_running()
+        self.assertEqual(3, p.base_running.advance12)
+        self.assertEqual(1, p.base_running.advance13)
+        self.assertEqual(1, p.base_running.advance23)
+        self.assertEqual(0, p.base_running.caught_stealing)
+        self.assertEqual(0, p.base_running.caught_stealing_second)
+        self.assertEqual(0, p.base_running.caught_stealing_third)
+        self.assertEqual(0, p.base_running.caught_stealing_home)
+        self.assertEqual(0, p.base_running.pick_off)
+        self.assertEqual(0, p.base_running.pick_off_first)
+        self.assertEqual(0, p.base_running.pick_off_second)
+        self.assertEqual(0, p.base_running.pick_off_third)
+        self.assertEqual(1, p.base_running.score_from_base)
+        self.assertEqual(0, p.base_running.score_from_first)
+        self.assertEqual(0, p.base_running.score_from_second)
+        self.assertEqual(1, p.base_running.score_from_third)
+        self.assertEqual(2, p.base_running.stolen_base)
+        self.assertEqual(2, p.base_running.steal_second)
+        self.assertEqual(0, p.base_running.steal_third)
+        self.assertEqual(0, p.base_running.steal_home)
+
+        self.assertEqual(3, p.batting.home_run + p.base_running.score_from_base)
+
     #                       AB	R	H	2B	3B	HR	RBI	BB	IBB	K	HBP	SH	SF	AVG     OBP	    SLG
     #      July 2022 Totals	101 18 	26 	5 	1 	6 	12 	10 	0 	17 	0 	0 	1 	.257 	.321 	.505
-    def test_batting_mookie_july_2022(self):
+    def test_offense_mookie_july_2022(self):
         p = Player('bettm001', self.cur, year='2022', month='07')
-        p.parse_batting()
 
+        p.parse_batting()
         self.assertEqual(101, p.batting.at_bat)
-        # don't test runs, since it includes base running
         # 1 fielder's choice, so only 25 hits
         self.assertEqual(25, p.batting.hit)
         self.assertEqual(5, p.batting.double)
@@ -1224,14 +1292,36 @@ class TestPlayer(unittest.TestCase):
         self.assertAlmostEqual(0.325, p.batting.on_base_percentage, delta=self.delta)
         self.assertAlmostEqual(0.495, p.batting.slugging, delta=self.delta)
 
+        p.parse_base_running()
+        self.assertEqual(9, p.base_running.advance12)
+        self.assertEqual(2, p.base_running.advance13)
+        self.assertEqual(4, p.base_running.advance23)
+        self.assertEqual(0, p.base_running.caught_stealing)
+        self.assertEqual(0, p.base_running.caught_stealing_second)
+        self.assertEqual(0, p.base_running.caught_stealing_third)
+        self.assertEqual(0, p.base_running.caught_stealing_home)
+        self.assertEqual(0, p.base_running.pick_off)
+        self.assertEqual(0, p.base_running.pick_off_first)
+        self.assertEqual(0, p.base_running.pick_off_second)
+        self.assertEqual(0, p.base_running.pick_off_third)
+        self.assertEqual(12, p.base_running.score_from_base)
+        self.assertEqual(2, p.base_running.score_from_first)
+        self.assertEqual(6, p.base_running.score_from_second)
+        self.assertEqual(4, p.base_running.score_from_third)
+        self.assertEqual(1, p.base_running.stolen_base)
+        self.assertEqual(1, p.base_running.steal_second)
+        self.assertEqual(0, p.base_running.steal_third)
+        self.assertEqual(0, p.base_running.steal_home)
+
+        self.assertEqual(18, p.batting.home_run + p.base_running.score_from_base)
+
     #                       AB	R	H	2B	3B	HR	RBI	BB	IBB	K	HBP	SH	SF	AVG     OBP	    SLG
     #    August 2022 Totals	109 30 	36 	11 	1 	9 	18 	8 	0 	20 	0 	0 	1 	.330 	.373 	.697
-    def test_batting_mookie_august_2022(self):
+    def test_offense_mookie_august_2022(self):
         p = Player('bettm001', self.cur, year='2022', month='08')
-        p.parse_batting()
 
+        p.parse_batting()
         self.assertEqual(109, p.batting.at_bat)
-        # don't test runs, since it includes base running
         self.assertEqual(36, p.batting.hit)
         self.assertEqual(11, p.batting.double)
         self.assertEqual(1, p.batting.triple)
@@ -1250,14 +1340,36 @@ class TestPlayer(unittest.TestCase):
         self.assertAlmostEqual(0.383, p.batting.on_base_percentage, delta=self.delta)
         self.assertAlmostEqual(0.697, p.batting.slugging, delta=self.delta)
 
+        p.parse_base_running()
+        self.assertEqual(10, p.base_running.advance12)
+        self.assertEqual(4, p.base_running.advance13)
+        self.assertEqual(10, p.base_running.advance23)
+        self.assertEqual(0, p.base_running.caught_stealing)
+        self.assertEqual(0, p.base_running.caught_stealing_second)
+        self.assertEqual(0, p.base_running.caught_stealing_third)
+        self.assertEqual(0, p.base_running.caught_stealing_home)
+        self.assertEqual(1, p.base_running.pick_off)
+        self.assertEqual(1, p.base_running.pick_off_first)
+        self.assertEqual(0, p.base_running.pick_off_second)
+        self.assertEqual(0, p.base_running.pick_off_third)
+        self.assertEqual(21, p.base_running.score_from_base)
+        self.assertEqual(0, p.base_running.score_from_first)
+        self.assertEqual(9, p.base_running.score_from_second)
+        self.assertEqual(12, p.base_running.score_from_third)
+        self.assertEqual(5, p.base_running.stolen_base)
+        self.assertEqual(5, p.base_running.steal_second)
+        self.assertEqual(0, p.base_running.steal_third)
+        self.assertEqual(0, p.base_running.steal_home)
+
+        self.assertEqual(30, p.batting.home_run + p.base_running.score_from_base)
+
     #                       AB	R	H	2B	3B	HR	RBI	BB	IBB	K	HBP	SH	SF	AVG     OBP	    SLG
     # September 2022 Totals	104 14 	24 	10 	1 	3 	12 	9 	0 	17 	0 	0 	1 	.231 	.289 	.433
-    def test_batting_mookie_september_2022(self):
+    def test_offense_mookie_september_2022(self):
         p = Player('bettm001', self.cur, year='2022', month='09')
-        p.parse_batting()
 
+        p.parse_batting()
         self.assertEqual(104, p.batting.at_bat)
-        # don't test runs, since it includes base running
         self.assertEqual(24, p.batting.hit)
         self.assertEqual(10, p.batting.double)
         self.assertEqual(1, p.batting.triple)
@@ -1276,12 +1388,35 @@ class TestPlayer(unittest.TestCase):
         self.assertAlmostEqual(0.302, p.batting.on_base_percentage, delta=self.delta)
         self.assertAlmostEqual(0.433, p.batting.slugging, delta=self.delta)
 
+        p.parse_base_running()
+        self.assertEqual(5, p.base_running.advance12)
+        self.assertEqual(3, p.base_running.advance13)
+        self.assertEqual(10, p.base_running.advance23)
+        self.assertEqual(1, p.base_running.caught_stealing)
+        self.assertEqual(1, p.base_running.caught_stealing_second)
+        self.assertEqual(0, p.base_running.caught_stealing_third)
+        self.assertEqual(0, p.base_running.caught_stealing_home)
+        self.assertEqual(0, p.base_running.pick_off)
+        self.assertEqual(0, p.base_running.pick_off_first)
+        self.assertEqual(0, p.base_running.pick_off_second)
+        self.assertEqual(0, p.base_running.pick_off_third)
+        self.assertEqual(11, p.base_running.score_from_base)
+        self.assertEqual(1, p.base_running.score_from_first)
+        self.assertEqual(1, p.base_running.score_from_second)
+        self.assertEqual(9, p.base_running.score_from_third)
+        self.assertEqual(0, p.base_running.stolen_base)
+        self.assertEqual(0, p.base_running.steal_second)
+        self.assertEqual(0, p.base_running.steal_third)
+        self.assertEqual(0, p.base_running.steal_home)
+
+        self.assertEqual(14, p.batting.home_run + p.base_running.score_from_base)
+
     #                       AB	R	H	2B	3B	HR	RBI	BB	IBB	K	HBP	SH	SF	AVG     OBP	    SLG
     #   October 2022 Totals	13 	2 	2 	1 	0 	0 	0 	1 	0 	3 	0 	0 	0 	.154 	.214 	.231
-    def test_batting_mookie_october_2022(self):
+    def test_offense_mookie_october_2022(self):
         p = Player('bettm001', self.cur, year='2022', month='10')
-        p.parse_batting()
 
+        p.parse_batting()
         self.assertEqual(13, p.batting.at_bat)
         # don't test runs, since it includes base running
         self.assertEqual(2, p.batting.hit)
@@ -1302,14 +1437,36 @@ class TestPlayer(unittest.TestCase):
         self.assertAlmostEqual(0.214, p.batting.on_base_percentage, delta=self.delta)
         self.assertAlmostEqual(0.231, p.batting.slugging, delta=self.delta)
 
+        p.parse_base_running()
+        self.assertEqual(0, p.base_running.advance12)
+        self.assertEqual(0, p.base_running.advance13)
+        self.assertEqual(0, p.base_running.advance23)
+        self.assertEqual(0, p.base_running.caught_stealing)
+        self.assertEqual(0, p.base_running.caught_stealing_second)
+        self.assertEqual(0, p.base_running.caught_stealing_third)
+        self.assertEqual(0, p.base_running.caught_stealing_home)
+        self.assertEqual(0, p.base_running.pick_off)
+        self.assertEqual(0, p.base_running.pick_off_first)
+        self.assertEqual(0, p.base_running.pick_off_second)
+        self.assertEqual(0, p.base_running.pick_off_third)
+        self.assertEqual(2, p.base_running.score_from_base)
+        self.assertEqual(1, p.base_running.score_from_first)
+        self.assertEqual(1, p.base_running.score_from_second)
+        self.assertEqual(0, p.base_running.score_from_third)
+        self.assertEqual(0, p.base_running.stolen_base)
+        self.assertEqual(0, p.base_running.steal_second)
+        self.assertEqual(0, p.base_running.steal_third)
+        self.assertEqual(0, p.base_running.steal_home)
+
+        self.assertEqual(2, p.batting.home_run + p.base_running.score_from_base)
+
     #                       AB	R	H	2B	3B	HR	RBI	BB	IBB	K	HBP	SH	SF	AVG     OBP	    SLG
     #    2022 Yearly Totals 572 117 155 40 	3 	35 	82 	55 	0 	104 0 	0 	4 	.271 	.333 	.535
-    def test_batting_mookie_total_2022(self):
+    def test_offense_mookie_total_2022(self):
         p = Player('bettm001', self.cur, year='2022')
-        p.parse_batting()
 
+        p.parse_batting()
         self.assertEqual(572, p.batting.at_bat)
-        # don't test runs, since it includes base running
         # 1 fielder's choice, so only 154 hits
         self.assertEqual(154, p.batting.hit)
         self.assertEqual(40, p.batting.double)
@@ -1328,6 +1485,29 @@ class TestPlayer(unittest.TestCase):
         self.assertAlmostEqual(0.269, p.batting.batting_average, delta=self.delta)
         self.assertAlmostEqual(0.340, p.batting.on_base_percentage, delta=self.delta)
         self.assertAlmostEqual(0.533, p.batting.slugging, delta=self.delta)
+
+        p.parse_base_running()
+        self.assertEqual(50, p.base_running.advance12)
+        self.assertEqual(18, p.base_running.advance13)
+        self.assertEqual(41, p.base_running.advance23)
+        self.assertEqual(2, p.base_running.caught_stealing)
+        self.assertEqual(1, p.base_running.caught_stealing_second)
+        self.assertEqual(1, p.base_running.caught_stealing_third)
+        self.assertEqual(0, p.base_running.caught_stealing_home)
+        self.assertEqual(2, p.base_running.pick_off)
+        self.assertEqual(1, p.base_running.pick_off_first)
+        self.assertEqual(1, p.base_running.pick_off_second)
+        self.assertEqual(0, p.base_running.pick_off_third)
+        self.assertEqual(82, p.base_running.score_from_base)
+        self.assertEqual(10, p.base_running.score_from_first)
+        self.assertEqual(29, p.base_running.score_from_second)
+        self.assertEqual(43, p.base_running.score_from_third)
+        self.assertEqual(12, p.base_running.stolen_base)
+        self.assertEqual(12, p.base_running.steal_second)
+        self.assertEqual(0, p.base_running.steal_third)
+        self.assertEqual(0, p.base_running.steal_home)
+
+        self.assertEqual(117, p.batting.home_run + p.base_running.score_from_base)
 
 
 if __name__ == '__main__':
