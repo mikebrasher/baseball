@@ -548,52 +548,134 @@ class BaseRunning:
         self.steal_third = 0
         self.steal_home = 0
 
-    def parse(self, the_play, base_running, position):
+    def parse(self, the_play, base_running, runner):
         self.play.parse(the_play, base_running)
 
         for base in self.play.caught_stealing:
-            if base == '2' and position == '1':
+            if base == '2' and runner == '1':
                 self.caught_stealing_second += 1
-            elif base == '3' and position == '2':
+            elif base == '3' and runner == '2':
                 self.caught_stealing_third += 1
-            elif (base == 'H' or base == '4') and position == '3':
+            elif (base == 'H' or base == '4') and runner == '3':
                 self.caught_stealing_home += 1
         self.caught_stealing = self.caught_stealing_second + self.caught_stealing_third + self.caught_stealing_home
 
         for base in self.play.pick_off:
-            if base == position == '1':
+            if base == runner == '1':
                 self.pick_off_first += 1
-            elif base == position == '2':
+            elif base == runner == '2':
                 self.pick_off_second += 1
-            elif base == position == '3':
+            elif base == runner == '3':
                 self.pick_off_third += 1
         self.pick_off = self.pick_off_first + self.pick_off_second + self.pick_off_third
 
         for base in self.play.score:
-            if base == position == '1':
+            if base == runner == '1':
                 self.score_from_first += 1
-            elif base == position == '2':
+            elif base == runner == '2':
                 self.score_from_second += 1
-            elif base == position == '3':
+            elif base == runner == '3':
                 self.score_from_third += 1
         self.score_from_base = self.score_from_first + self.score_from_second + self.score_from_third
 
         for base in self.play.stolen_base:
-            if base == '2' and position == '1':
+            if base == '2' and runner == '1':
                 self.steal_second += 1
-            elif base == '3' and position == '2':
+            elif base == '3' and runner == '2':
                 self.steal_third += 1
-            elif (base == 'H' or base == '4') and position == '3':
+            elif (base == 'H' or base == '4') and runner == '3':
                 self.steal_home += 1
         self.stolen_base = self.steal_second + self.steal_third + self.steal_home
 
         for bases in self.play.advance:
-            if bases == '1-2' and position == '1':
+            if bases == '1-2' and runner == '1':
                 self.advance12 += 1
-            elif bases == '1-3' and position == '1':
+            elif bases == '1-3' and runner == '1':
                 self.advance13 += 1
-            elif bases == '2-3' and position == '2':
+            elif bases == '2-3' and runner == '2':
                 self.advance23 += 1
+
+
+class Fielding:
+    def __init__(self):
+        self.play = Play()
+
+        self.num_out = 0
+        self.total_chance = 0
+        self.put_out = 0
+        self.assist = 0
+        self.error = 0
+        self.double_play = 0
+        self.triple_play = 0
+        self.passed_ball = 0
+        self.inning_at_position = 0.0
+        self.fielding = 0.0
+
+    def reset(self):
+        self.num_out = 0
+        self.total_chance = 0
+        self.put_out = 0
+        self.assist = 0
+        self.error = 0
+        self.double_play = 0
+        self.triple_play = 0
+        self.passed_ball = 0
+        self.inning_at_position = 0.0
+        self.fielding = 0.0
+
+    def parse(self, the_play, base_running, position):
+        self.play.parse(the_play, base_running)
+
+        fielded_play = False
+        for fielder in self.play.put_out:
+            if fielder == position:
+                fielded_play = True
+                self.put_out += 1
+
+        for fielder in self.play.assist:
+            if fielder == position:
+                fielded_play = True
+                self.assist += 1
+
+        for fielder in self.play.error:
+            if fielder == position:
+                self.error += 1
+
+        if self.play.double_play > 0 and fielded_play:
+            self.double_play += 1
+
+        if self.play.triple_play > 0 and fielded_play:
+            self.triple_play += 1
+
+        # only the catcher can miss a passed ball
+        if self.play.passed_ball > 0 and position == '2':
+            self.passed_ball += 1
+
+        self.num_out += self.play.num_out
+        self.inning_at_position = self.num_out / 3.0
+
+        self.total_chance = self.put_out + self.assist + self.error
+        if self.total_chance > 0:
+            self.fielding = (self.put_out + self.assist) / self.total_chance
+
+    def print_stats(self):
+        header = ['INN', 'TC', 'PO', 'A', 'E', 'DP', 'TP', 'PB', 'F']
+        str_header = ['{:5s}'.format(h) for h in header]
+        print('\t'.join(str_header))
+
+        data = [
+            self.inning_at_position,
+            self.total_chance,
+            self.put_out,
+            self.assist,
+            self.error,
+            self.double_play,
+            self.triple_play,
+            self.passed_ball,
+            self.fielding,
+        ]
+        str_data = ['{:<5d}'.format(d) if type(d) is int else '{:5.3f}'.format(d) for d in data]
+        print('\t'.join(str_data))
 
 
 class Pitching:
@@ -729,142 +811,13 @@ class Pitching:
         print('\t'.join(str_data))
 
 
-class Fielding:
-    def __init__(self):
-        self.play = Play()
-
-        # accumulate statistics
-        self.sacrifice_hit = 0
-        self.sacrifice_fly = 0
-        self.out_played = 0
-        self.put_out = 0
-        self.assist = 0
-        self.error = 0
-        self.error = 0
-        self.stolen_base = 0
-        self.single = 0
-        self.double = 0
-        self.triple = 0
-        self.home_run = 0
-        self.walk = 0
-        self.strike_out = 0
-        self.intentional_walk = 0
-        self.fielders_choice = 0
-        self.no_play = 0
-        self.hit_by_pitch = 0
-        self.passed_ball = 0
-        self.error_on_foul_fly_ball = 0
-        self.defensive_indifference = 0
-        self.wild_pitch = 0
-        self.balk = 0
-        self.pick_off = 0
-        self.caught_stealing = 0
-        self.unknown = 0
-
-        # derived stats
-        self.inning_at_position = 0
-        self.total_chance = 0
-        self.double_play = 0
-        self.triple_play = 0
-        self.fielding = 0.0
-
-    def parse_play(self, play, base_running, position, inning, vis_score, home_score, outs):
-        events = play.split('/')
-        first = events[0]
-        is_out, put_out, assist = parse_play(first)
-        curr_out = self.out_played
-        curr_strike_out = self.strike_out
-        if is_out:
-            count_out = len(put_out)
-            self.out_played += count_out
-            self.put_out += sum([1 for po in put_out if po == position])
-            self.assist += sum([1 for a in assist if a == position])
-            if position in put_out or position in assist:
-                if count_out == 2:
-                    self.double_play += 1
-                elif count_out == 3:
-                    self.triple_play += 1
-        elif first.find('E') == 0:
-            if first[1] == position:
-                self.error += 1
-        elif first.find('SB') == 0:
-            self.stolen_base += 1
-        elif first == 'WP':
-            self.wild_pitch += 1
-        elif first == 'DI':
-            self.defensive_indifference += 1  # no attempt to prevent stolen base
-        elif first.find('S') == 0:
-            self.single += 1
-        elif first.find('D') == 0:
-            self.double += 1
-        elif first.find('T') == 0:
-            self.triple += 1
-        elif first == 'H' or first == 'HR':
-            self.home_run += 1
-        elif first.find('W') == 0:
-            self.walk += 1
-        elif first.find('K') == 0:
-            self.strike_out += 1
-        elif first == 'I' or first == 'IW':
-            self.intentional_walk += 1
-        elif first.find('FC') == 0:
-            self.fielders_choice += 1
-        elif first == 'NP':
-            self.no_play += 1  # for substitutions
-        elif first == 'HP':
-            self.hit_by_pitch += 1
-        elif first == 'PB':
-            self.passed_ball += 1
-        elif first.find('FLE') == 0:
-            self.error_on_foul_fly_ball += 1
-        elif first == 'BK':
-            self.balk += 1
-        elif first.find('PO') == 0:
-            self.pick_off += 1
-        elif first.find('CS') == 0:
-            self.caught_stealing += 1
-        else:
-            self.unknown += 1
-
-        for advance in base_running.split(';'):
-            error_idx = advance.find('E')
-            if error_idx >= 0:
-                if advance[error_idx + 1] == position:
-                    self.error += 1
-            if advance.find('X') >= 0:
-                self.out_played += 1
-                fielders = re.findall(r'\((.*?)\)', advance)
-                for f in fielders:
-                    if f[-1] == position:
-                        self.put_out += 1
-                    elif position in list(f[:-1]):
-                        self.assist += 1
-
-        self.inning_at_position = (self.out_played + self.strike_out + self.pick_off + self.caught_stealing) / 3.0
-
-        self.total_chance = self.put_out + self.assist + self.error
-        if self.total_chance > 0:
-            self.fielding = (self.put_out + self.assist) / self.total_chance
-
-    def print_stats(self):
-        header = ['INN', 'TC', 'PO', 'A', 'E', 'DP', 'PB', 'SB', 'CS', 'F']
-        str_header = ['{:5s}'.format(h) for h in header]
-        print('\t'.join(str_header))
-
-        data = [
-            self.inning_at_position,
-            self.total_chance,
-            self.put_out,
-            self.assist,
-            self.error,
-            self.double_play,
-            self.passed_ball,
-            self.stolen_base,
-            self.caught_stealing,
-            self.fielding,
-        ]
-        str_data = ['{:<5d}'.format(d) if type(d) is int else '{:5.3f}'.format(d) for d in data]
-        print('\t'.join(str_data))
+def parse_gameID(gameID):
+    park = gameID[0:3]
+    year = gameID[3:7]
+    month = gameID[7:9]
+    day = gameID[9:11]
+    game = gameID[11]
+    return park, year, month, day, game
 
 
 class Player:
@@ -878,8 +831,16 @@ class Player:
 
         self.batting = Batting()
         self.base_running = BaseRunning()
-        self.pitching = Pitching()
         self.fielding = Fielding()
+        self.pitching = Pitching()
+
+    def match_game(self, gameID):
+        _, _, month, day, game = parse_gameID(gameID)
+        # print('park: {}, year: {}, month: {}, day: {}'.format(park, year, month, day))
+        match_month = self.month is None or month == self.month
+        match_day = self.day is None or day == self.day
+        match_game = self.game is None or game == self.game
+        return match_month and match_day and match_game
 
     def parse_batting(self):
         self.batting.reset()
@@ -896,17 +857,7 @@ class Player:
             cmd += "AND theyear='{}'".format(self.year)
 
         for row in self.cursor.execute(cmd):
-            gameID = row[1]
-            # park = gameID[0:3]
-            # year = gameID[3:7]
-            month = gameID[7:9]
-            day = gameID[9:11]
-            game = gameID[11]
-            # print('park: {}, year: {}, month: {}, day: {}'.format(park, year, month, day))
-            match_month = self.month is None or month == self.month
-            match_day = self.day is None or day == self.day
-            match_game = self.game is None or game == self.game
-            if match_month and match_day and match_game:
+            if self.match_game(gameID=row[1]):
                 play = row[2]
                 base_running = row[3]
                 self.batting.parse(play, base_running)
@@ -927,17 +878,7 @@ class Player:
             cmd += "AND theyear='{}'".format(self.year)
 
         for row in self.cursor.execute(cmd):
-            gameID = row[1]
-            # park = gameID[0:3]
-            # year = gameID[3:7]
-            month = gameID[7:9]
-            day = gameID[9:11]
-            game = gameID[11]
-            # print('park: {}, year: {}, month: {}, day: {}'.format(park, year, month, day))
-            match_month = self.month is None or month == self.month
-            match_day = self.day is None or day == self.day
-            match_game = self.game is None or game == self.game
-            if match_month and match_day and match_game:
+            if self.match_game(gameID=row[1]):
                 batterID = row[2]
                 # catch database errors where player is both a batter and runner
                 if batterID != self.id:
@@ -948,15 +889,55 @@ class Player:
                     base_running = row[7]
 
                     if runner_1b == self.id:
-                        position = '1'
+                        runner = '1'
                     elif runner_2b == self.id:
-                        position = '2'
+                        runner = '2'
                     elif runner_3b == self.id:
-                        position = '3'
+                        runner = '3'
                     else:
-                        position = ''
-                    self.base_running.parse(the_play, base_running, position)
+                        runner = ''
+                    self.base_running.parse(the_play, base_running, runner)
                     # print(row)
+
+    def parse_fielding(self):
+        # positions
+        # 1: pitcher
+        # 2: catcher
+        # 3: first base
+        # 4: second base
+        # 5: third base
+        # 6: short stop
+        # 7: left field
+        # 8: center field
+        # 9: right field
+
+        cmd = """
+        SELECT
+           eventID, gameID, theplay, baserunning,
+           pitcherID, field_C_playerID,
+           field_1B_playerID, field_2B_playerID, field_3B_playerID,
+           field_SS_playerID,
+           field_LF_playerID, field_CF_playerID, field_RF_playerID
+        FROM
+           event
+        WHERE
+           (pitcherID='{}' OR field_C_playerID='{}' OR
+            field_1B_playerID='{}' OR field_2B_playerID='{}' OR field_3B_playerID='{}' OR
+            field_SS_playerID='{}' OR
+            field_LF_playerID='{}' OR field_CF_playerID='{}' OR field_RF_playerID='{}')
+        """.format(*[self.id] * 9)
+        if self.year is not None:
+            cmd += "AND theyear='{}'".format(self.year)
+
+        for row in self.cursor.execute(cmd):
+            if self.match_game(gameID=row[1]):
+                the_play = row[2]
+                base_running = row[3]
+                # assume row[4:13] matches positions 1-9
+                for idx, fielder in enumerate(row[4:13]):
+                    if self.id == fielder:
+                        position = str(idx + 1)
+                        self.fielding.parse(the_play, base_running, position)
 
     def parse_pitching(self):
         cmd = """
@@ -971,17 +952,7 @@ class Player:
             cmd += "AND theyear='{}'".format(self.year)
 
         for row in self.cursor.execute(cmd):
-            gameID = row[1]
-            # park = gameID[0:3]
-            # year = gameID[3:7]
-            month = gameID[7:9]
-            day = gameID[9:11]
-            game = gameID[11]
-            # print('park: {}, year: {}, month: {}, day: {}'.format(park, year, month, day))
-            match_month = self.month is None or month == self.month
-            match_day = self.day is None or day == self.day
-            match_game = self.game is None or game == self.game
-            if match_month and match_day and match_game:
+            if self.match_game(gameID=row[1]):
                 inning = row[2]
                 vis_score = row[3]
                 home_score = row[4]
@@ -990,58 +961,3 @@ class Player:
                 base_running = row[7]
                 self.pitching.parse_match_up(play, base_running, inning, vis_score, home_score, outs)
                 print(row)
-
-    def parse_fielding(self):
-        positions = [
-            ('2', 'field_C_playerID'),
-            ('3', 'field_1B_playerID'),
-            ('4', 'field_2B_playerID'),
-            ('5', 'field_3B_playerID'),
-            ('6', 'field_SS_playerID'),
-            ('7', 'field_LF_playerID'),
-            ('8', 'field_CF_playerID'),
-            ('9', 'field_RF_playerID')
-        ]
-
-        cmd = """
-        SELECT
-           eventID, gameID, inning, vis_score, home_score, outs, theplay, baserunning,
-           field_C_playerID,
-           field_1B_playerID, field_2B_playerID, field_3B_playerID,
-           field_SS_playerID,
-           field_LF_playerID, field_CF_playerID, field_RF_playerID
-        FROM
-           event
-        WHERE
-           (field_C_playerID='{}' OR
-            field_1B_playerID='{}' OR field_2B_playerID='{}' OR field_3B_playerID='{}' OR
-            field_SS_playerID='{}' OR
-            field_LF_playerID='{}' OR field_CF_playerID='{}' OR field_RF_playerID='{}')
-        """.format(*[self.id] * 8)
-        if self.year is not None:
-            cmd += "AND theyear='{}'".format(self.year)
-
-        for row in self.cursor.execute(cmd):
-            gameID = row[1]
-            # park = gameID[0:3]
-            # year = gameID[3:7]
-            month = gameID[7:9]
-            day = gameID[9:11]
-            game = gameID[11]
-            # print('park: {}, year: {}, month: {}, day: {}'.format(park, year, month, day))
-            match_month = self.month is None or month == self.month
-            match_day = self.day is None or day == self.day
-            match_game = self.game is None or game == self.game
-            if match_month and match_day and match_game:
-                inning = row[2]
-                vis_score = row[3]
-                home_score = row[4]
-                outs = row[5]
-                play = row[6]
-                base_running = row[7]
-                # assume row[8:16] matches positions 2-9
-                for idx, fielder in enumerate(row[8:16]):
-                    if self.id == fielder:
-                        pos = str(idx + 2)
-                        self.fielding.parse_play(play, base_running, pos, inning, vis_score, home_score, outs)
-                        print(row[0:8])

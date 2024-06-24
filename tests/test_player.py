@@ -1,6 +1,6 @@
 import unittest
 import sqlite3
-from baseball.player import Play, Batting, BaseRunning, Player
+from baseball.player import Play, Batting, BaseRunning, Fielding, Player
 
 
 class TestPlay(unittest.TestCase):
@@ -1103,6 +1103,187 @@ class TestBaseRunning(unittest.TestCase):
         self.assertEqual(3, self.base_running.advance23)
 
 
+class TestFielding(unittest.TestCase):
+
+    def setUp(self):
+        self.fielding = Fielding()
+
+    def test_put_out(self):
+        at_bats = (
+            # the current fielder got a putout
+            ('31/G3D+', '', '1'),
+            ('62(3)/FO/G6S+', '2-3;1-2;0-1', '2'),
+            ('63/G6', '', '3'),
+            ('POCS2(134)', '', '4'),
+            ('65(1)/FO/G6+', '0-1', '5'),
+            ('56(2)/FO/BG25-', '1-2;0-1', '6'),
+            ('7/F78D', '', '7'),
+            ('8/L8D', '', '8'),
+            ('9/F9', '', '9'),
+            # some other fielder got a putout
+            ('31/G3D+', '', '2'),
+            ('62(3)/FO/G6S+', '2-3;1-2;0-1', '1'),
+            ('63/G6', '', '1'),
+            ('POCS2(134)', '', '1'),
+            ('65(1)/FO/G6+', '0-1', '1'),
+            ('56(2)/FO/BG25-', '1-2;0-1', '1'),
+            ('7/F78D', '', '1'),
+            ('8/L8D', '', '1'),
+            ('9/F9', '', '1'),
+        )
+        for the_play, base_running, position in at_bats:
+            self.fielding.parse(the_play, base_running, position)
+
+        self.assertEqual(9, self.fielding.put_out)
+
+    def test_assist(self):
+        at_bats = (
+            # the current fielder got an assist
+            ('31/G3D+', '', '3'),
+            ('62(3)/FO/G6S+', '2-3;1-2;0-1', '6'),
+            ('63/G6', '', '6'),
+            ('POCS2(134)', '', '1'),
+            ('65(1)/FO/G6+', '0-1', '6'),
+            ('56(2)/FO/BG25-', '1-2;0-1', '5'),
+            # some other fielder got an assist
+            ('31/G3D+', '', '2'),
+            ('62(3)/FO/G6S+', '2-3;1-2;0-1', '1'),
+            ('63/G6', '', '1'),
+            ('POCS2(134)', '', '2'),
+            ('65(1)/FO/G6+', '0-1', '1'),
+            ('56(2)/FO/BG25-', '1-2;0-1', '1'),
+        )
+        for the_play, base_running, position in at_bats:
+            self.fielding.parse(the_play, base_running, position)
+
+        self.assertEqual(6, self.fielding.assist)
+
+    def test_error(self):
+        at_bats = (
+            # the current fielder got an error
+            ('S1/BG2', '1-4;0-2(E1/T4)', '1'),
+            ('SB2', '1-3(E2/T4)', '2'),
+            ('E3/G34', '2-3;1-2;0-1', '3'),
+            ('FC4/G4M+', '2-3;1-2(E4);0-1', '4'),
+            ('S5/G5', '1-3(E5/T4);0-2', '5'),
+            ('E6/TH/G6M', '0-2', '6'),
+            ('E7/F7LD', '0-2', '7'),
+            ('E8/F89D', '0-2', '8'),
+            ('S9/G34', '2-4;1-3;0-2(E9/T4)', '9'),
+            # some other fielder got an error
+            ('S1/BG2', '1-4;0-2(E1/T4)', '4'),
+            ('SB2', '1-3(E2/T4)', '4'),
+            ('E3/G34', '2-3;1-2;0-1', '1'),
+            ('FC4/G4M+', '2-3;1-2(E4);0-1', '1'),
+            ('S5/G5', '1-3(E5/T4);0-2', '4'),
+            ('E6/TH/G6M', '0-2', '3'),
+            ('E7/F7LD', '0-2', '4'),
+            ('E8/F89D', '0-2', '5'),
+            ('S9/G34', '2-4;1-3;0-2(E9/T4)', '6'),
+        )
+        for the_play, base_running, position in at_bats:
+            self.fielding.parse(the_play, base_running, position)
+
+        self.assertEqual(9, self.fielding.error)
+
+    def test_double_play(self):
+        at_bats = (
+            # the current fielder was part of a double play
+            ('5/L56/DP', '1X1(53)', '5'),
+            ('5/L56/DP', '1X1(53)', '3'),
+            ('36(1)3/GDP/G3', '', '3'),
+            ('36(1)3/GDP/G3', '', '6'),
+            ('6(1)3/GDP/G6M', '3-4', '3'),
+            ('6(1)3/GDP/G6M', '3-4', '6'),
+            ('7/SF/DP/F78D+', '3-4;2X3(7545)', '4'),
+            ('7/SF/DP/F78D+', '3-4;2X3(7545)', '5'),
+            ('7/SF/DP/F78D+', '3-4;2X3(7545)', '7'),
+            # some other fielder was part of a double play
+            ('5/L56/DP', '1X1(53)', '6'),
+            ('36(1)3/GDP/G3', '', '2'),
+            ('6(1)3/GDP/G6M', '3-4', '4'),
+            ('7/SF/DP/F78D+', '3-4;2X3(7545)', '8'),
+        )
+        for the_play, base_running, position in at_bats:
+            self.fielding.parse(the_play, base_running, position)
+
+        self.assertEqual(9, self.fielding.double_play)
+
+    def test_triple_play(self):
+        at_bats = (
+            # the current fielder was part of a triple play
+            ('6/L6/TP', '2X2(64);1X1(43)', '3'),
+            ('6/L6/TP', '2X2(64);1X1(43)', '4'),
+            ('6/L6/TP', '2X2(64);1X1(43)', '6'),
+            ('8/F89XD+/TP,', '2X2(5);1X1(85)', '5'),
+            ('8/F89XD+/TP,', '2X2(5);1X1(85)', '8'),
+            ('5(2)4(1)3/GTP', '', '3'),
+            ('5(2)4(1)3/GTP', '', '4'),
+            ('5(2)4(1)3/GTP', '', '5'),
+            # some other fielder was part of a triple play
+            ('6/L6/TP', '2X2(64);1X1(43)', '5'),
+            ('8/F89XD+/TP,', '2X2(5);1X1(85)', '7'),
+            ('5(2)4(1)3/GTP', '', '6'),
+        )
+        for the_play, base_running, position in at_bats:
+            self.fielding.parse(the_play, base_running, position)
+
+        self.assertEqual(8, self.fielding.triple_play)
+
+    def test_passed_ball(self):
+        at_bats = (
+            # the catcher on a passed ball
+            ('PB', '2-3', '2'),
+            ('K+PB', '0-1', '2'),
+            ('W+PB', '3-4;2-3', '2'),
+            # some other fielder was part of a triple play
+            ('PB', '2-3', '1'),
+            ('K+PB', '0-1', '3'),
+            ('W+PB', '3-4;2-3', '4'),
+        )
+        for the_play, base_running, position in at_bats:
+            self.fielding.parse(the_play, base_running, position)
+
+        self.assertEqual(3, self.fielding.passed_ball)
+
+    def test_num_out(self):
+        at_bats = (
+            # top of first inning for CHA202207240
+            ('3/G3,', '', '3'),
+            ('9/F9D', '', '5'),
+            ('S8/G6M', '', '8'),
+            ('S7/G56+', '1-2', '4'),
+            ('8/L89D', '', '3'),
+            # top of second inning for CHA202207240
+            ('S7/L7L', '', '7'),
+            ('53/G5S', '1-2', '9'),
+            ('K', '', '1'),
+            ('WP', '2-3', '6'),
+            ('K', '', '7'),
+        )
+        for the_play, base_running, position in at_bats:
+            self.fielding.parse(the_play, base_running, position)
+
+        # all fielders get an out played regardless of their involvement in the out
+        self.assertEqual(6, self.fielding.num_out)
+        self.assertAlmostEqual(2.0, self.fielding.inning_at_position)
+
+    def test_fielding(self):
+        at_bats = (
+            ('65(1)/FO/G6+', '0-1', '5'),        # 3B putout
+            ('56(2)/FO/BG25-', '1-2;0-1', '5'),  # 3B assist
+            ('S5/G5', '1-3(E5/T4);0-2', '5'),    # 3B error
+        )
+        for the_play, base_running, position in at_bats:
+            self.fielding.parse(the_play, base_running, position)
+
+        self.assertEqual(1, self.fielding.put_out)
+        self.assertEqual(1, self.fielding.assist)
+        self.assertEqual(1, self.fielding.error)
+        self.assertEqual(3, self.fielding.total_chance)
+        self.assertAlmostEqual(2/3, self.fielding.fielding)
+
+
 class TestPlayer(unittest.TestCase):
 
     def setUp(self):
@@ -1508,6 +1689,170 @@ class TestPlayer(unittest.TestCase):
         self.assertEqual(0, p.base_running.steal_home)
 
         self.assertEqual(117, p.batting.home_run + p.base_running.score_from_base)
+
+    # starting lineup for game 4/8/22 vs Rockies
+    # pitcher = Player('buehw001', self.cur, year='2022')       # Walker Buehler
+    def test_fielding_dodgers_pitcher_2022(self):
+        # https://www.baseball-reference.com/players/b/buehlwa01.shtml
+        # Pos   Inn 	Ch 	    PO 	    A 	E 	DP 	Fld
+        # P	    65.0	11	    5	    6	0	0	1.000
+        p = Player('buehw001', self.cur, year='2022')       # Walker Buehler
+        p.parse_fielding()
+        self.assertEqual(196, p.fielding.num_out)
+        self.assertEqual(11, p.fielding.total_chance)
+        self.assertEqual(5, p.fielding.put_out)
+        self.assertEqual(6, p.fielding.assist)
+        self.assertEqual(0, p.fielding.error)
+        self.assertEqual(0, p.fielding.double_play)
+        self.assertEqual(0, p.fielding.triple_play)
+        self.assertEqual(0, p.fielding.passed_ball)
+        self.assertAlmostEqual(65.3333, p.fielding.inning_at_position, delta=self.delta)
+        self.assertAlmostEqual(1.0, p.fielding.fielding, delta=self.delta)
+
+    def test_fielding_dodgers_catcher_2022(self):
+        # https://www.baseball-reference.com/players/s/smithwi05.shtml
+        # Pos   Inn 	Ch 	    PO 	    A 	E 	DP 	Fld     PB
+        # C	    956.1	1003	968	    32	3	6	.997	4
+        p = Player('smitw003', self.cur, year='2022')  # Will Smith
+        p.parse_fielding()
+        self.assertEqual(2886, p.fielding.num_out)
+        self.assertEqual(70, p.fielding.total_chance)
+        self.assertEqual(36, p.fielding.put_out)  # TODO: determine why this value is wildly different
+        self.assertEqual(31, p.fielding.assist)
+        self.assertEqual(3, p.fielding.error)
+        self.assertEqual(6, p.fielding.double_play)
+        self.assertEqual(0, p.fielding.triple_play)
+        self.assertEqual(4, p.fielding.passed_ball)
+        self.assertAlmostEqual(962.0, p.fielding.inning_at_position, delta=self.delta)
+        self.assertAlmostEqual(0.957, p.fielding.fielding, delta=self.delta)
+
+    def test_fielding_dodgers_first_base_2022(self):
+        # https://www.baseball-reference.com/players/f/freemfr01.shtml
+        # Pos   Inn 	Ch 	    PO 	    A 	E 	DP 	Fld
+        # 1B	1377.2	1251	1155	91	5	100	.996
+        p = Player('freef001', self.cur, year='2022')  # Freddie Freeman
+        p.parse_fielding()
+        self.assertEqual(4152, p.fielding.num_out)
+        self.assertEqual(1250, p.fielding.total_chance)
+        self.assertEqual(1155, p.fielding.put_out)
+        self.assertEqual(90, p.fielding.assist)
+        self.assertEqual(5, p.fielding.error)
+        self.assertEqual(100, p.fielding.double_play)
+        self.assertEqual(0, p.fielding.triple_play)
+        self.assertEqual(0, p.fielding.passed_ball)
+        self.assertAlmostEqual(1384.0, p.fielding.inning_at_position, delta=self.delta)
+        self.assertAlmostEqual(0.996, p.fielding.fielding, delta=self.delta)
+
+    def test_fielding_dodgers_second_base_2022(self):
+        # https://www.baseball-reference.com/players/l/luxga01.shtml
+        # Pos   Inn 	Ch 	PO 	A 	E 	DP 	Fld
+        # 2B	819.2	337	148	180	9	45	.973
+        # OF	205.1	29	29	0	0	0	1.000
+        # SS	31.0	14	3	11	0	3	1.000
+        # sum   1056.0  380 180 191 9   48  .979
+        p = Player('lux-g001', self.cur, year='2022')  # Gavin Lux
+        p.parse_fielding()
+        self.assertEqual(3187, p.fielding.num_out)
+        self.assertEqual(348, p.fielding.total_chance)
+        self.assertEqual(180, p.fielding.put_out)
+        self.assertEqual(159, p.fielding.assist)
+        self.assertEqual(9, p.fielding.error)
+        self.assertEqual(48, p.fielding.double_play)
+        self.assertEqual(0, p.fielding.triple_play)
+        self.assertEqual(0, p.fielding.passed_ball)
+        self.assertAlmostEqual(1062.3333, p.fielding.inning_at_position, delta=self.delta)
+        self.assertAlmostEqual(0.974, p.fielding.fielding, delta=self.delta)
+
+    def test_fielding_dodgers_third_base_2022(self):
+        # https://www.baseball-reference.com/players/m/muncyma01.shtml
+        # Pos   Inn 	Ch 	PO 	A 	E 	DP 	Fld
+        # 3B	713.0	222	51	161	10	25	.955
+        # 2B	223.1	106	35	69	2	13	.981
+        # sum   936.1   328 86  230 12  38  .963
+        p = Player('muncm001', self.cur, year='2022')  # Max Muncy
+        p.parse_fielding()
+        self.assertEqual(2837, p.fielding.num_out)
+        self.assertEqual(317, p.fielding.total_chance)
+        self.assertEqual(90, p.fielding.put_out)
+        self.assertEqual(215, p.fielding.assist)
+        self.assertEqual(12, p.fielding.error)
+        self.assertEqual(39, p.fielding.double_play)
+        self.assertEqual(0, p.fielding.triple_play)
+        self.assertEqual(0, p.fielding.passed_ball)
+        self.assertAlmostEqual(945.6667, p.fielding.inning_at_position, delta=self.delta)
+        self.assertAlmostEqual(0.962, p.fielding.fielding, delta=self.delta)
+
+    def test_fielding_dodgers_short_stop_2022(self):
+        # https://www.baseball-reference.com/players/t/turnetr01.shtml
+        # Pos   Inn 	Ch 	PO 	A 	E 	DP 	Fld
+        # SS	1386.2	524	174	334	16	54	.969
+        p = Player('turnt001', self.cur, year='2022')  # Trea Turner
+        p.parse_fielding()
+        self.assertEqual(4179, p.fielding.num_out)
+        self.assertEqual(500, p.fielding.total_chance)
+        self.assertEqual(174, p.fielding.put_out)
+        self.assertEqual(310, p.fielding.assist)
+        self.assertEqual(16, p.fielding.error)
+        self.assertEqual(54, p.fielding.double_play)
+        self.assertEqual(0, p.fielding.triple_play)
+        self.assertEqual(0, p.fielding.passed_ball)
+        self.assertAlmostEqual(1393.0, p.fielding.inning_at_position, delta=self.delta)
+        self.assertAlmostEqual(0.968, p.fielding.fielding, delta=self.delta)
+
+    def test_fielding_dodgers_left_field_2022(self):
+        # https://www.baseball-reference.com/players/t/tayloch03.shtml
+        # Pos   Inn 	Ch 	PO 	A 	E 	DP 	Fld
+        # OF	777.0	170	165	3	2	2	.988
+        # 2B	170.0	80	27	53	0	8	1.000
+        # sum   947.0   250 192 56  2   10  .992
+        p = Player('taylc001', self.cur, year='2022')  # Chris Taylor
+        p.parse_fielding()
+        self.assertEqual(2869, p.fielding.num_out)
+        self.assertEqual(243, p.fielding.total_chance)
+        self.assertEqual(192, p.fielding.put_out)
+        self.assertEqual(49, p.fielding.assist)
+        self.assertEqual(2, p.fielding.error)
+        self.assertEqual(10, p.fielding.double_play)
+        self.assertEqual(0, p.fielding.triple_play)
+        self.assertEqual(0, p.fielding.passed_ball)
+        self.assertAlmostEqual(956.3333, p.fielding.inning_at_position, delta=self.delta)
+        self.assertAlmostEqual(0.992, p.fielding.fielding, delta=self.delta)
+
+    def test_fielding_dodgers_center_field_2022(self):
+        # https://www.baseball-reference.com/players/b/bellico01.shtml
+        # Pos   Inn 	Ch 	PO 	A 	E 	DP 	Fld
+        # CF    1223.0 327	322	2	3	0	.991
+        p = Player('bellc002', self.cur, year='2022')  # Cody Bellinger
+        p.parse_fielding()
+        self.assertEqual(3689, p.fielding.num_out)
+        self.assertEqual(327, p.fielding.total_chance)
+        self.assertEqual(322, p.fielding.put_out)
+        self.assertEqual(2, p.fielding.assist)
+        self.assertEqual(3, p.fielding.error)
+        self.assertEqual(0, p.fielding.double_play)
+        self.assertEqual(0, p.fielding.triple_play)
+        self.assertEqual(0, p.fielding.passed_ball)
+        self.assertAlmostEqual(1229.6667, p.fielding.inning_at_position, delta=self.delta)
+        self.assertAlmostEqual(0.991, p.fielding.fielding, delta=self.delta)
+
+    def test_fielding_dodgers_right_field_2022(self):
+        # https://www.baseball-reference.com/players/b/bettsmo01.shtml
+        # Pos   Inn 	Ch 	PO 	A 	E 	DP 	Fld%
+        # RF    1154.1	308	298	8	2	4	.994
+        # 2B    46.0	24	9	15	0	7	1.000
+        # sum   1200.1  332 307 23  2   11  .994
+        right_field = Player('bettm001', self.cur, year='2022')  # Mookie Betts
+        right_field.parse_fielding()
+        self.assertEqual(3618, right_field.fielding.num_out)
+        self.assertEqual(327, right_field.fielding.total_chance)
+        self.assertEqual(307, right_field.fielding.put_out)
+        self.assertEqual(18, right_field.fielding.assist)
+        self.assertEqual(2, right_field.fielding.error)
+        self.assertEqual(11, right_field.fielding.double_play)
+        self.assertEqual(0, right_field.fielding.triple_play)
+        self.assertEqual(0, right_field.fielding.passed_ball)
+        self.assertAlmostEqual(1206.0, right_field.fielding.inning_at_position, delta=self.delta)
+        self.assertAlmostEqual(0.994, right_field.fielding.fielding, delta=self.delta)
 
 
 if __name__ == '__main__':
