@@ -57,6 +57,7 @@ class Play:
         self.num_out = 0
         self.num_run = 0
         self.run_batted_in = 0
+        self.earned_run = 0
 
         # other members
         self.separator = '|'
@@ -119,6 +120,7 @@ class Play:
         self.num_out = 0
         self.num_run = 0
         self.run_batted_in = 0
+        self.earned_run = 0
 
     # assume pick off or caught stealing is present
     def parse_pick_off_caught_stealing(self, play, fielders):
@@ -201,6 +203,7 @@ class Play:
         elif first.find('HR') == 0 or first.find('H') == 0:
             self.home_run = 1
             self.score.append('B')
+            self.earned_run = 1
         elif first.find('IW') == 0 or first.find('I') == 0:
             self.intentional_walk = 1
         elif first.find('NP') == 0:
@@ -324,14 +327,20 @@ class Play:
             # score from first
             if (advance.find('1-4') >= 0) or advance.find('1-H') >= 0:
                 self.score.append('1')
+                if error_idx < 0:
+                    self.earned_run += 1
 
             # score from second
             if (advance.find('2-4') >= 0) or advance.find('2-H') >= 0:
                 self.score.append('2')
+                if error_idx < 0:
+                    self.earned_run += 1
 
             # score from third
             if (advance.find('3-4') >= 0) or advance.find('3-H') >= 0:
                 self.score.append('3')
+                if error_idx < 0:
+                    self.earned_run += 1
 
             # runner's advance a base
             # first to second
@@ -681,109 +690,66 @@ class Fielding:
 
 class Pitching:
     def __init__(self):
-        # pitching even enum
-        self.sacrifice_hit = 0
-        self.sacrifice_fly = 0
-        self.out = 0
-        self.error = 0
-        self.stolen_base = 0
+        self.play = Play()
+
+        self.num_out = 0
+        self.strike_out = 0
         self.single = 0
         self.double = 0
         self.triple = 0
         self.home_run = 0
+        self.run = 0
+        self.earned_run = 0
         self.walk = 0
-        self.strike_out = 0
         self.intentional_walk = 0
-        self.fielders_choice = 0
-        self.no_play = 0
-        self.hit_by_pitch = 0
-        self.passed_ball = 0
-        self.error_on_foul_fly_ball = 0
-        self.defensive_indifference = 0
         self.wild_pitch = 0
+        self.hit_by_pitch = 0
         self.balk = 0
         self.pick_off = 0
-        self.caught_stealing = 0
-        self.unknown = 0
-
-        # derived stats
-        self.earned_run = 0
-        self.earned_run_average = 0.0
-        self.innings_pitched = 0.0
         self.hit = 0
+        self.innings_pitched = 0.0
+        self.earned_run_average = 0.0
+
+    def reset(self):
+        self.num_out = 0
+        self.strike_out = 0
+        self.single = 0
+        self.double = 0
+        self.triple = 0
+        self.home_run = 0
         self.run = 0
+        self.earned_run = 0
+        self.walk = 0
+        self.intentional_walk = 0
+        self.wild_pitch = 0
+        self.hit_by_pitch = 0
+        self.balk = 0
+        self.pick_off = 0
+        self.hit = 0
+        self.innings_pitched = 0.0
+        self.earned_run_average = 0.0
 
-    def parse_match_up(self, play, base_running, inning, vis_score, home_score, outs):
-        events = play.split('/')
-        first = events[0]
-        is_out, put_out, _ = parse_play(first)
-        curr_out = self.out
-        curr_strike_out = self.strike_out
-        if is_out:
-            self.out += len(put_out)
-        elif first.find('E') == 0:
-            self.error += 1
-        elif first.find('SB') == 0:
-            self.stolen_base += 1
-        elif first == 'WP':
-            self.wild_pitch += 1
-        elif first == 'DI':
-            self.defensive_indifference += 1  # no attempt to prevent stolen base
-        elif first.find('S') == 0:
-            self.single += 1
-        elif first.find('D') == 0:
-            self.double += 1
-        elif first.find('T') == 0:
-            self.triple += 1
-        elif first == 'H' or first == 'HR':
-            self.home_run += 1
-            self.run += 1
-            self.earned_run += 1
-        elif first.find('W') == 0:
-            self.walk += 1
-        elif first.find('K') == 0:
-            self.strike_out += 1
-        elif first == 'I' or first == 'IW':
-            self.intentional_walk += 1
-        elif first.find('FC') == 0:
-            self.fielders_choice += 1
-        elif first == 'NP':
-            self.no_play += 1  # for substitutions
-        elif first == 'HP':
-            self.hit_by_pitch += 1
-        elif first == 'PB':
-            self.passed_ball += 1
-        elif first.find('FLE') == 0:
-            self.error_on_foul_fly_ball += 1
-        elif first == 'BK':
-            self.balk += 1
-        elif first.find('PO') == 0:
-            self.pick_off += 1
-        elif first.find('CS') == 0:
-            self.caught_stealing += 1
-        else:
-            self.unknown += 1
+    def parse(self, the_play, base_running):
+        self.play.parse(the_play, base_running)
 
-        if base_running.find('1-4') >= 0:
-            self.run += 1
+        self.num_out += self.play.num_out
+        self.strike_out += self.play.strike_out
+        self.single += self.play.single
+        self.double += self.play.double
+        self.triple += self.play.triple
+        self.home_run += self.play.home_run
 
-        if base_running.find('2-4') >= 0:
-            self.run += 1
+        self.run += self.play.num_run
+        self.earned_run += self.play.earned_run
 
-        if base_running.find('3-4') >= 0:
-            self.run += 1
+        self.walk += self.play.walk
+        self.intentional_walk += self.play.intentional_walk
+        self.wild_pitch += self.play.wild_pitch
+        self.hit_by_pitch += self.play.hit_by_pitch
+        self.balk += self.play.balk
+        self.pick_off += len(self.play.pick_off)
 
-        # don't include errors on fielding the hit
-        if first.find('E') < 0:
-            # or on the play at home, i.e. '1-4(E6)'
-            earned_run_list = ['1-4', '2-4', '3-4']
-            for advance in base_running.split(';'):
-                if advance in earned_run_list:
-                    self.earned_run += 1
-                if advance.find('X') >= 0:
-                    self.out += 1
-
-        self.innings_pitched = (self.out + self.strike_out + self.pick_off + self.caught_stealing) / 3.0
+        self.innings_pitched = self.num_out / 3.0
         if self.innings_pitched > 0:
             self.earned_run_average = self.earned_run * 9.0 / self.innings_pitched
 
@@ -943,7 +909,7 @@ class Player:
     def parse_pitching(self):
         cmd = """
         SELECT
-           eventID, gameID, inning, vis_score, home_score, outs, theplay, baserunning
+           eventID, gameID, theplay, baserunning
         FROM
            event
         WHERE
@@ -954,11 +920,7 @@ class Player:
 
         for row in self.cursor.execute(cmd):
             if self.match_game(gameID=row[1]):
-                inning = row[2]
-                vis_score = row[3]
-                home_score = row[4]
-                outs = row[5]
-                play = row[6]
-                base_running = row[7]
-                self.pitching.parse_match_up(play, base_running, inning, vis_score, home_score, outs)
-                print(row)
+                play = row[2]
+                base_running = row[3]
+                self.pitching.parse(play, base_running)
+                # print(row)

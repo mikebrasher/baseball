@@ -1,6 +1,6 @@
 import unittest
 import sqlite3
-from baseball.player import Play, Batting, BaseRunning, Fielding, Player
+from baseball.player import Play, Batting, BaseRunning, Fielding, Pitching, Player
 
 
 class TestPlay(unittest.TestCase):
@@ -531,7 +531,6 @@ class TestPlay(unittest.TestCase):
         self.assertEqual(1, self.play.balk)
 
     def test_caught_stealing(self):
-        # TODO: debug failing tests, starting here
         self.play.parse('CSH(12)')
         self.assertEqual(1, self.play.num_out)
         self.assertEqual(0, self.play.num_run)
@@ -760,6 +759,23 @@ class TestPlay(unittest.TestCase):
         self.assertEqual([], self.play.assist)
         self.assertEqual([], self.play.error)
         self.assertEqual(0, self.play.run_batted_in)
+
+    def test_earned_run(self):
+        self.play.parse('53/G56S', '3-4;1-2')
+        self.assertEqual(1, self.play.num_run)
+        self.assertEqual(1, self.play.earned_run)
+
+        self.play.parse('S5/G5', '2-4(E5/T4);0-2')
+        self.assertEqual(1, self.play.num_run)
+        self.assertEqual(0, self.play.earned_run)
+
+        self.play.parse('D9/L89XD', '2-4;1-4(E6)')
+        self.assertEqual(2, self.play.num_run)
+        self.assertEqual(1, self.play.earned_run)
+
+        self.play.parse('HR/F89XD', '2-4;1-4')
+        self.assertEqual(3, self.play.num_run)
+        self.assertEqual(3, self.play.earned_run)
 
 
 class TestBatting(unittest.TestCase):
@@ -1282,6 +1298,143 @@ class TestFielding(unittest.TestCase):
         self.assertEqual(1, self.fielding.error)
         self.assertEqual(3, self.fielding.total_chance)
         self.assertAlmostEqual(2/3, self.fielding.fielding)
+
+
+class TestPitcing(unittest.TestCase):
+
+    def setUp(self):
+        self.pitching = Pitching()
+
+    def test_innings_pitched(self):
+        at_bats = (
+            # first 3 innings pitched by alcas001 in WAS202209180
+            ('HP', ''),
+            ('6/L6', ''),
+            ('9/F9/DP', '1X1(93)'),
+            ('63/G6MD', ''),
+            ('S9/F9S', ''),
+            ('6(1)3/GDP/G6M', ''),
+            ('43/G34', ''),
+            ('K', ''),
+            ('K', ''),
+        )
+        for the_play, base_running in at_bats:
+            self.pitching.parse(the_play, base_running)
+
+        self.assertEqual(9, self.pitching.num_out)
+        self.assertEqual(3.0, self.pitching.innings_pitched)
+
+    def test_strike_out(self):
+        at_bats = (
+            ('43/G34', ''),
+            ('K', ''),
+            ('K', ''),
+        )
+        for the_play, base_running in at_bats:
+            self.pitching.parse(the_play, base_running)
+
+        self.assertEqual(2, self.pitching.strike_out)
+
+    def test_hits(self):
+        at_bats = (
+            ('K', ''),
+            ('S7/G56', '3-4'),
+            ('D8/L78XD+', ''),
+            ('T9/G3', ''),
+            ('HR/F8XD', '2-4'),
+        )
+        for the_play, base_running in at_bats:
+            self.pitching.parse(the_play, base_running)
+
+        self.assertEqual(1, self.pitching.single)
+        self.assertEqual(1, self.pitching.double)
+        self.assertEqual(1, self.pitching.triple)
+        self.assertEqual(1, self.pitching.home_run)
+        self.assertEqual(4, self.pitching.hit)
+
+    def test_runs(self):
+        at_bats = (
+            ('K', ''),  # provide out for ERA denominator
+            ('S7/G56', '3-4'),                  # 1 run , 1 earned
+            ('D8/F8XD+', '2-4;1-4'),            # 2 runs, 2 earned
+            ('T9/L9D+', '2-4;1-4'),             # 2 runs, 2 earned
+            ('HR/F89XD', '1-4'),                # 2 runs, 2 earned
+            ('S4/G4', '2-4(E4/T4)'),            # 1 runs, 0 earned
+            ('T7/L7LS', '2-4;1-4;0-4(E7/T4)'),  # 3 runs, 2 earned
+        )
+        for the_play, base_running in at_bats:
+            self.pitching.parse(the_play, base_running)
+
+        self.assertEqual(11, self.pitching.run)
+        self.assertEqual(9, self.pitching.earned_run)
+        # 9 earned runs per out * 27 outs/game = 243 earned runs
+        self.assertAlmostEqual(243.0, self.pitching.earned_run_average)
+
+    def test_walk(self):
+        at_bats = (
+            ('K', ''),
+            ('W', ''),
+            ('W', ''),
+        )
+        for the_play, base_running in at_bats:
+            self.pitching.parse(the_play, base_running)
+
+        self.assertEqual(2, self.pitching.walk)
+
+    def test_intentional_walk(self):
+        at_bats = (
+            ('W', ''),
+            ('IW', ''),
+            ('IW', ''),
+        )
+        for the_play, base_running in at_bats:
+            self.pitching.parse(the_play, base_running)
+
+        self.assertEqual(2, self.pitching.intentional_walk)
+
+    def test_wild_pitch(self):
+        at_bats = (
+            ('K', ''),
+            ('WP', ''),
+            ('WP', ''),
+        )
+        for the_play, base_running in at_bats:
+            self.pitching.parse(the_play, base_running)
+
+        self.assertEqual(2, self.pitching.wild_pitch)
+
+    def test_hit_by_pitch(self):
+        at_bats = (
+            ('K', ''),
+            ('HP', ''),
+            ('HP', ''),
+        )
+        for the_play, base_running in at_bats:
+            self.pitching.parse(the_play, base_running)
+
+        self.assertEqual(2, self.pitching.hit_by_pitch)
+
+    def test_balk(self):
+        at_bats = (
+            ('K', ''),
+            ('BK', ''),
+            ('BK', ''),
+        )
+        for the_play, base_running in at_bats:
+            self.pitching.parse(the_play, base_running)
+
+        self.assertEqual(2, self.pitching.balk)
+
+    def test_pick_off(self):
+        at_bats = (
+            ('K', ''),
+            ('PO1', ''),
+            ('POCS2', ''),
+        )
+        for the_play, base_running in at_bats:
+            self.pitching.parse(the_play, base_running)
+
+        self.assertEqual(2, self.pitching.pick_off)
 
 
 class TestPlayer(unittest.TestCase):
@@ -1841,18 +1994,44 @@ class TestPlayer(unittest.TestCase):
         # RF    1154.1	308	298	8	2	4	.994
         # 2B    46.0	24	9	15	0	7	1.000
         # sum   1200.1  332 307 23  2   11  .994
-        right_field = Player('bettm001', self.cur, year='2022')  # Mookie Betts
-        right_field.parse_fielding()
-        self.assertEqual(3618, right_field.fielding.num_out)
-        self.assertEqual(327, right_field.fielding.total_chance)
-        self.assertEqual(307, right_field.fielding.put_out)
-        self.assertEqual(18, right_field.fielding.assist)
-        self.assertEqual(2, right_field.fielding.error)
-        self.assertEqual(11, right_field.fielding.double_play)
-        self.assertEqual(0, right_field.fielding.triple_play)
-        self.assertEqual(0, right_field.fielding.passed_ball)
-        self.assertAlmostEqual(1206.0, right_field.fielding.inning_at_position, delta=self.delta)
-        self.assertAlmostEqual(0.994, right_field.fielding.fielding, delta=self.delta)
+        p = Player('bettm001', self.cur, year='2022')  # Mookie Betts
+        p.parse_fielding()
+        self.assertEqual(3618, p.fielding.num_out)
+        self.assertEqual(327, p.fielding.total_chance)
+        self.assertEqual(307, p.fielding.put_out)
+        self.assertEqual(18, p.fielding.assist)
+        self.assertEqual(2, p.fielding.error)
+        self.assertEqual(11, p.fielding.double_play)
+        self.assertEqual(0, p.fielding.triple_play)
+        self.assertEqual(0, p.fielding.passed_ball)
+        self.assertAlmostEqual(1206.0, p.fielding.inning_at_position, delta=self.delta)
+        self.assertAlmostEqual(0.994, p.fielding.fielding, delta=self.delta)
+
+    def test_pitching_alcantara_2022(self):
+        # https://www.baseball-reference.com/players/a/alcansa01.shtml
+        # ERA 	IP 	    H 	R 	ER 	HR 	BB 	IBB 	SO 	HBP BK 	WP
+        # 2.28	228.2	174	67	58	16	50	1	    207	9	0	3
+        # runs after error that should have been third out are not officially scored as earned
+        # but are assumed as earned here, so earned runs a bit higher
+        p = Player('alcas001', self.cur, year='2022')  # Mookie Betts
+        p.parse_pitching()
+        self.assertEqual(686, p.pitching.num_out)
+        self.assertEqual(207, p.pitching.strike_out)
+        self.assertEqual(120, p.pitching.single)
+        self.assertEqual(32, p.pitching.double)
+        self.assertEqual(6, p.pitching.triple)
+        self.assertEqual(16, p.pitching.home_run)
+        self.assertEqual(65, p.pitching.run)
+        self.assertEqual(64, p.pitching.earned_run)
+        self.assertEqual(49, p.pitching.walk)
+        self.assertEqual(1, p.pitching.intentional_walk)
+        self.assertEqual(3, p.pitching.wild_pitch)
+        self.assertEqual(9, p.pitching.hit_by_pitch)
+        self.assertEqual(0, p.pitching.balk)
+        self.assertEqual(3, p.pitching.pick_off)
+        self.assertEqual(174, p.pitching.hit)
+        self.assertAlmostEqual(228.6667, p.pitching.innings_pitched, delta=self.delta)
+        self.assertAlmostEqual(2.519, p.pitching.earned_run_average, delta=self.delta)
 
 
 if __name__ == '__main__':
