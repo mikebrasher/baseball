@@ -227,6 +227,7 @@ class Play:
             sub_event = first.split('+')[0]
             if sub_event == 'K':
                 self.strike_out = 1
+                self.put_out.append('2')  # catcher gets credit for strikeout
             else:
                 self.dropped_third_strike = 1
                 self.put_out.append(sub_event[-1])
@@ -373,7 +374,7 @@ class Play:
         self.parse_base_running(base_running)
 
         # include all putouts from fielding play and base running
-        self.num_out = len(self.put_out) + self.strike_out
+        self.num_out = len(self.put_out)
 
 
 class Batting:
