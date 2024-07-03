@@ -783,6 +783,11 @@ class TestBatting(unittest.TestCase):
     def setUp(self):
         self.batting = Batting()
 
+    def test_features(self):
+        x = self.batting.features()
+        self.assertTrue(isinstance(x, list))
+        self.assertTrue(len(x) > 0)
+
     def test_sacrifice(self):
         at_bats = (
             ('3/SH/BG5S', '2-3;1-2'),
@@ -993,6 +998,11 @@ class TestBaseRunning(unittest.TestCase):
     def setUp(self):
         self.base_running = BaseRunning()
 
+    def test_features(self):
+        x = self.base_running.features()
+        self.assertTrue(isinstance(x, list))
+        self.assertTrue(len(x) > 0)
+
     def test_caught_stealing(self):
         at_bats = (
             # the current runner was caught stealing
@@ -1123,6 +1133,11 @@ class TestFielding(unittest.TestCase):
 
     def setUp(self):
         self.fielding = Fielding()
+
+    def test_features(self):
+        x = self.fielding.features()
+        self.assertTrue(isinstance(x, list))
+        self.assertTrue(len(x) > 0)
 
     def test_put_out(self):
         at_bats = (
@@ -1304,6 +1319,11 @@ class TestPitcing(unittest.TestCase):
 
     def setUp(self):
         self.pitching = Pitching()
+
+    def test_features(self):
+        x = self.pitching.features()
+        self.assertTrue(isinstance(x, list))
+        self.assertTrue(len(x) > 0)
 
     def test_innings_pitched(self):
         at_bats = (
