@@ -1444,6 +1444,17 @@ class TestPlayer(unittest.TestCase):
         self.cur = self.con.cursor()
         self.delta = 5e-3
 
+    def test_null_cursor(self):
+        p = Player('foo001')
+
+        p.parse_batting()
+        p.parse_base_running()
+        p.parse_fielding()
+        p.parse_pitching()
+
+        # success if we got here
+        self.assertTrue(True)
+
     # baseball almanac doesn't seem to record hit by pitch, so some numbers are off
     # https://www.baseball-almanac.com/players/hittinglogs.php?p=bettsmo01&y=2022
     #                       AB	R	H	2B	3B	HR	RBI	BB	IBB	K	HBP	SH	SF	AVG     OBP	    SLG
@@ -2032,6 +2043,9 @@ class TestPlayer(unittest.TestCase):
         self.assertEqual(174, p.pitching.hit)
         self.assertAlmostEqual(228.6667, p.pitching.innings_pitched, delta=self.delta)
         self.assertAlmostEqual(2.519, p.pitching.earned_run_average, delta=self.delta)
+
+    def tearDown(self):
+        self.con.close()
 
 
 if __name__ == '__main__':
