@@ -445,6 +445,37 @@ class Batting:
         self.total_bases = 0
         self.slugging = 0.0
 
+    def features(self):
+        x = [
+            # accumulate statistics
+            self.sacrifice_hit,
+            self.sacrifice_fly,
+            self.out,
+            self.strike_out,
+            self.single,
+            self.double,
+            self.triple,
+            self.home_run,
+            self.hit_by_pitch,
+            self.error_batter_on_base,
+            self.walk,
+            self.intentional_walk,
+            self.fielders_choice,
+            self.run,
+            self.run_batted_in,
+
+            # derived stats
+            self.hit,
+            self.at_bat,
+            self.batting_average,
+            self.times_reached_base,
+            self.at_bats_plus,
+            self.on_base_percentage,
+            self.total_bases,
+            self.slugging,
+        ]
+        return x
+
     def append(self, play):
         self.sacrifice_hit += play.sacrifice_hit
         self.sacrifice_fly += play.sacrifice_fly
@@ -560,6 +591,30 @@ class BaseRunning:
         self.steal_third = 0
         self.steal_home = 0
 
+    def features(self):
+        x = [
+            self.advance12,
+            self.advance13,
+            self.advance23,
+            self.caught_stealing,
+            self.caught_stealing_second,
+            self.caught_stealing_third,
+            self.caught_stealing_home,
+            self.pick_off,
+            self.pick_off_first,
+            self.pick_off_second,
+            self.pick_off_third,
+            self.score_from_base,
+            self.score_from_first,
+            self.score_from_second,
+            self.score_from_third,
+            self.stolen_base,
+            self.steal_second,
+            self.steal_third,
+            self.steal_home,
+        ]
+        return x
+
     def append(self, play, runner):
         for base in play.caught_stealing:
             if base == '2' and runner == '1':
@@ -636,6 +691,21 @@ class Fielding:
         self.passed_ball = 0
         self.inning_at_position = 0.0
         self.fielding = 0.0
+
+    def features(self):
+        x = [
+            self.num_out,
+            self.total_chance,
+            self.put_out,
+            self.assist,
+            self.error,
+            self.double_play,
+            self.triple_play,
+            self.passed_ball,
+            self.inning_at_position,
+            self.fielding,
+        ]
+        return x
 
     def append(self, play, position):
         fielded_play = False
@@ -735,6 +805,28 @@ class Pitching:
         self.innings_pitched = 0.0
         self.earned_run_average = 0.0
 
+    def features(self):
+        x = [
+            self.num_out,
+            self.strike_out,
+            self.single,
+            self.double,
+            self.triple,
+            self.home_run,
+            self.run,
+            self.earned_run,
+            self.walk,
+            self.intentional_walk,
+            self.wild_pitch,
+            self.hit_by_pitch,
+            self.balk,
+            self.pick_off,
+            self.hit,
+            self.innings_pitched,
+            self.earned_run_average,
+        ]
+        return x
+
     def append(self, play):
         self.num_out += play.num_out
         self.strike_out += play.strike_out
@@ -809,8 +901,13 @@ class Player:
         self.fielding = Fielding()
         self.pitching = Pitching()
 
-    def feature(self):
-        return [self.batting.at_bat, self.base_running.score_from_base, self.fielding.put_out, self.pitching.strike_out]
+    def features(self):
+        x = []
+        x += self.batting.features()
+        x += self.base_running.features()
+        x += self.fielding.features()
+        x += self.pitching.features()
+        return x
 
     def match_game(self, gameID):
         _, _, month, day, game = parse_gameID(gameID)
