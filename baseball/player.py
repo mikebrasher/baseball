@@ -388,7 +388,7 @@ class Play:
 
 class Batting:
     def __init__(self):
-        self.play = Play()
+        self.my_play = Play()
 
         # accumulate statistics
         self.sacrifice_hit = 0
@@ -445,27 +445,25 @@ class Batting:
         self.total_bases = 0
         self.slugging = 0.0
 
-    def parse(self, the_play, base_running):
-        self.play.parse(the_play, base_running)
-
-        self.sacrifice_hit += self.play.sacrifice_hit
-        self.sacrifice_fly += self.play.sacrifice_fly
-        if self.play.sacrifice_hit == 0 and self.play.sacrifice_fly == 0:
+    def append(self, play):
+        self.sacrifice_hit += play.sacrifice_hit
+        self.sacrifice_fly += play.sacrifice_fly
+        if play.sacrifice_hit == 0 and play.sacrifice_fly == 0:
             # don't count sacs as out for at bat
-            self.out += self.play.batter_out
+            self.out += play.batter_out
 
-        self.strike_out += self.play.strike_out
-        self.single += self.play.single
-        self.double += self.play.double
-        self.triple += self.play.triple
-        self.home_run += self.play.home_run
-        self.hit_by_pitch += self.play.hit_by_pitch
-        self.error_batter_on_base += self.play.error_batter_on_base
-        self.walk += self.play.walk
-        self.intentional_walk += self.play.intentional_walk
-        self.fielders_choice += self.play.fielders_choice
-        self.run += self.play.num_run
-        self.run_batted_in += self.play.run_batted_in
+        self.strike_out += play.strike_out
+        self.single += play.single
+        self.double += play.double
+        self.triple += play.triple
+        self.home_run += play.home_run
+        self.hit_by_pitch += play.hit_by_pitch
+        self.error_batter_on_base += play.error_batter_on_base
+        self.walk += play.walk
+        self.intentional_walk += play.intentional_walk
+        self.fielders_choice += play.fielders_choice
+        self.run += play.num_run
+        self.run_batted_in += play.run_batted_in
 
         self.hit = self.single + self.double + self.triple + self.home_run
         self.at_bat = self.strike_out + self.out + self.hit + self.error_batter_on_base + self.fielders_choice
@@ -485,6 +483,10 @@ class Batting:
         self.total_bases = self.single + 2 * self.double + 3 * self.triple + 4 * self.home_run
         if self.at_bat > 0:
             self.slugging = self.total_bases / self.at_bat
+
+    def parse(self, the_play, base_running):
+        self.my_play.parse(the_play, base_running)
+        self.append(self.my_play)
 
     def print_stats(self):
         header = ['AB', 'R', 'H', '2B', '3B', 'HR', 'RBI',
@@ -515,7 +517,7 @@ class Batting:
 
 class BaseRunning:
     def __init__(self):
-        self.play = Play()
+        self.my_play = Play()
 
         self.advance12 = 0
         self.advance13 = 0
@@ -558,10 +560,8 @@ class BaseRunning:
         self.steal_third = 0
         self.steal_home = 0
 
-    def parse(self, the_play, base_running, runner):
-        self.play.parse(the_play, base_running)
-
-        for base in self.play.caught_stealing:
+    def append(self, play, runner):
+        for base in play.caught_stealing:
             if base == '2' and runner == '1':
                 self.caught_stealing_second += 1
             elif base == '3' and runner == '2':
@@ -570,7 +570,7 @@ class BaseRunning:
                 self.caught_stealing_home += 1
         self.caught_stealing = self.caught_stealing_second + self.caught_stealing_third + self.caught_stealing_home
 
-        for base in self.play.pick_off:
+        for base in play.pick_off:
             if base == runner == '1':
                 self.pick_off_first += 1
             elif base == runner == '2':
@@ -579,7 +579,7 @@ class BaseRunning:
                 self.pick_off_third += 1
         self.pick_off = self.pick_off_first + self.pick_off_second + self.pick_off_third
 
-        for base in self.play.score:
+        for base in play.score:
             if base == runner == '1':
                 self.score_from_first += 1
             elif base == runner == '2':
@@ -588,7 +588,7 @@ class BaseRunning:
                 self.score_from_third += 1
         self.score_from_base = self.score_from_first + self.score_from_second + self.score_from_third
 
-        for base in self.play.stolen_base:
+        for base in play.stolen_base:
             if base == '2' and runner == '1':
                 self.steal_second += 1
             elif base == '3' and runner == '2':
@@ -597,7 +597,7 @@ class BaseRunning:
                 self.steal_home += 1
         self.stolen_base = self.steal_second + self.steal_third + self.steal_home
 
-        for bases in self.play.advance:
+        for bases in play.advance:
             if bases == '1-2' and runner == '1':
                 self.advance12 += 1
             elif bases == '1-3' and runner == '1':
@@ -605,10 +605,14 @@ class BaseRunning:
             elif bases == '2-3' and runner == '2':
                 self.advance23 += 1
 
+    def parse(self, the_play, base_running, runner):
+        self.my_play.parse(the_play, base_running)
+        self.append(self.my_play, runner)
+
 
 class Fielding:
     def __init__(self):
-        self.play = Play()
+        self.my_play = Play()
 
         self.num_out = 0
         self.total_chance = 0
@@ -633,40 +637,42 @@ class Fielding:
         self.inning_at_position = 0.0
         self.fielding = 0.0
 
-    def parse(self, the_play, base_running, position):
-        self.play.parse(the_play, base_running)
-
+    def append(self, play, position):
         fielded_play = False
-        for fielder in self.play.put_out:
+        for fielder in play.put_out:
             if fielder == position:
                 fielded_play = True
                 self.put_out += 1
 
-        for fielder in self.play.assist:
+        for fielder in play.assist:
             if fielder == position:
                 fielded_play = True
                 self.assist += 1
 
-        for fielder in self.play.error:
+        for fielder in play.error:
             if fielder == position:
                 self.error += 1
 
-        if self.play.double_play > 0 and fielded_play:
+        if play.double_play > 0 and fielded_play:
             self.double_play += 1
 
-        if self.play.triple_play > 0 and fielded_play:
+        if play.triple_play > 0 and fielded_play:
             self.triple_play += 1
 
         # only the catcher can miss a passed ball
-        if self.play.passed_ball > 0 and position == '2':
+        if play.passed_ball > 0 and position == '2':
             self.passed_ball += 1
 
-        self.num_out += self.play.num_out
+        self.num_out += play.num_out
         self.inning_at_position = self.num_out / 3.0
 
         self.total_chance = self.put_out + self.assist + self.error
         if self.total_chance > 0:
             self.fielding = (self.put_out + self.assist) / self.total_chance
+
+    def parse(self, the_play, base_running, position):
+        self.my_play.parse(the_play, base_running)
+        self.append(self.my_play, position)
 
     def print_stats(self):
         header = ['INN', 'TC', 'PO', 'A', 'E', 'DP', 'TP', 'PB', 'F']
@@ -690,7 +696,7 @@ class Fielding:
 
 class Pitching:
     def __init__(self):
-        self.play = Play()
+        self.my_play = Play()
 
         self.num_out = 0
         self.strike_out = 0
@@ -729,31 +735,33 @@ class Pitching:
         self.innings_pitched = 0.0
         self.earned_run_average = 0.0
 
-    def parse(self, the_play, base_running):
-        self.play.parse(the_play, base_running)
+    def append(self, play):
+        self.num_out += play.num_out
+        self.strike_out += play.strike_out
+        self.single += play.single
+        self.double += play.double
+        self.triple += play.triple
+        self.home_run += play.home_run
 
-        self.num_out += self.play.num_out
-        self.strike_out += self.play.strike_out
-        self.single += self.play.single
-        self.double += self.play.double
-        self.triple += self.play.triple
-        self.home_run += self.play.home_run
+        self.run += play.num_run
+        self.earned_run += play.earned_run
 
-        self.run += self.play.num_run
-        self.earned_run += self.play.earned_run
-
-        self.walk += self.play.walk
-        self.intentional_walk += self.play.intentional_walk
-        self.wild_pitch += self.play.wild_pitch
-        self.hit_by_pitch += self.play.hit_by_pitch
-        self.balk += self.play.balk
-        self.pick_off += len(self.play.pick_off)
+        self.walk += play.walk
+        self.intentional_walk += play.intentional_walk
+        self.wild_pitch += play.wild_pitch
+        self.hit_by_pitch += play.hit_by_pitch
+        self.balk += play.balk
+        self.pick_off += len(play.pick_off)
 
         self.innings_pitched = self.num_out / 3.0
         if self.innings_pitched > 0:
             self.earned_run_average = self.earned_run * 9.0 / self.innings_pitched
 
         self.hit = self.single + self.double + self.triple + self.home_run
+
+    def parse(self, the_play, base_running):
+        self.my_play.parse(the_play, base_running)
+        self.append(self.my_play)
 
     def print_stats(self):
         header = ['ERA', 'IP', 'K', 'H', 'ER', 'R', 'HR', 'BB', 'IBB', 'WP', 'HBP', 'BK']
@@ -788,7 +796,7 @@ def parse_gameID(gameID):
 
 
 class Player:
-    def __init__(self, player_id, cursor, year=None, month=None, day=None, game=None):
+    def __init__(self, player_id, cursor=None, year=None, month=None, day=None, game=None):
         self.id = player_id
         self.cursor = cursor
         self.year = year
@@ -801,6 +809,9 @@ class Player:
         self.fielding = Fielding()
         self.pitching = Pitching()
 
+    def feature(self):
+        return [self.batting.at_bat, self.base_running.score_from_base, self.fielding.put_out, self.pitching.strike_out]
+
     def match_game(self, gameID):
         _, _, month, day, game = parse_gameID(gameID)
         # print('park: {}, year: {}, month: {}, day: {}'.format(park, year, month, day))
@@ -810,6 +821,9 @@ class Player:
         return match_month and match_day and match_game
 
     def parse_batting(self):
+        if self.cursor is None:
+            return
+
         self.batting.reset()
 
         cmd = """
@@ -831,6 +845,9 @@ class Player:
                 # print(row)
 
     def parse_base_running(self):
+        if self.cursor is None:
+            return
+
         self.base_running.reset()
 
         cmd = """
@@ -867,6 +884,9 @@ class Player:
                     # print(row)
 
     def parse_fielding(self):
+        if self.cursor is None:
+            return
+
         # positions
         # 1: pitcher
         # 2: catcher
@@ -907,6 +927,9 @@ class Player:
                         self.fielding.parse(the_play, base_running, position)
 
     def parse_pitching(self):
+        if self.cursor is None:
+            return
+
         cmd = """
         SELECT
            eventID, gameID, theplay, baserunning
