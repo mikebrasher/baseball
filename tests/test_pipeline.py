@@ -50,9 +50,9 @@ class TestPlay(unittest.TestCase):
         self.assertEqual(9, players['ohtas001'].pitching.strike_out)
         self.assertAlmostEqual(14/3, players['ohtas001'].pitching.innings_pitched)
 
-        self.assertEqual(3, game_result.vis_score)
-        self.assertEqual(1, game_result.home_score)
-        self.assertEqual(0, game_result.result)
+        self.assertEqual(3, game_result['vis_score'])
+        self.assertEqual(1, game_result['home_score'])
+        self.assertEqual(0, game_result['result'])
 
     def test_load(self):
         # connect to database and get cursor
