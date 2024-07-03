@@ -1,7 +1,8 @@
 import csv
 from os import path
 import sqlite3
-from baseball.player import Play, Player
+import datetime
+from baseball.player import Play, Player, parse_gameID
 
 
 class Pipeline:
@@ -106,25 +107,33 @@ class Pipeline:
         game_table_data = []
         player_table_data = []
         for game_id, (players, game_result) in game_data.items():
-            game_row = (game_id, game_result['vis_score'], game_result['home_score'], game_result['result'])
+            _, year, month, day, game = parse_gameID(game_id)
+            game_datetime = str(datetime.datetime(int(year), int(month), int(day), hour=int(game)))
+            game_row = (
+                game_id,
+                game_datetime,
+                game_result['vis_score'],
+                game_result['home_score'],
+                game_result['result']
+            )
             game_table_data.append(game_row)
 
             for player_id, player in players.items():
-                player_row = [player_id, game_id] + player.feature()
+                player_row = [player_id, game_id] + player.features()
                 player_table_data.append(tuple(player_row))
 
         # create new game table if it doesn't already exist
-        cmd = 'CREATE TABLE IF NOT EXISTS game(game_id, vis_score, home_score, result)'
+        cmd = 'CREATE TABLE IF NOT EXISTS game(game_id, datetime, vis_score, home_score, result)'
         cursor.execute(cmd)
         connection.commit()
 
         # insert result into game table
-        cmd = 'INSERT INTO game VALUES(?, ?, ?, ?)'
+        cmd = 'INSERT INTO game VALUES(?, ?, ?, ?, ?)'
         cursor.executemany(cmd, game_table_data)
         connection.commit()
 
         # create new player table listing player x game features
-        num_feature = len(Player('foo').feature())
+        num_feature = len(Player('foo').features())
         feature_header = []
         for idx in range(num_feature):
             feature_header.append('x{:03}'.format(idx))
@@ -148,7 +157,7 @@ class Pipeline:
         # transform
         game_data = {}
         for game_id, game_events in raw_data.items():
-            print('transforming game: {}'.format(game_id))
+            # print('transforming game: {}'.format(game_id))
             players, game_result = self.transform(game_events)
             game_data[game_id] = (players, game_result)
 
