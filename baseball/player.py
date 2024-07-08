@@ -1,4 +1,5 @@
 import re
+import datetime
 
 
 class Play:
@@ -878,13 +879,18 @@ class Pitching:
         print('\t'.join(str_data))
 
 
-def parse_gameID(gameID):
+def parse_game_id(gameID):
     park = gameID[0:3]
     year = gameID[3:7]
     month = gameID[7:9]
     day = gameID[9:11]
     game = gameID[11]
     return park, year, month, day, game
+
+
+def game_id_to_datetime(gameID):
+    _, year, month, day, game = parse_game_id(gameID)
+    return datetime.datetime(int(year), int(month), int(day), hour=int(game))
 
 
 class Player:
@@ -910,7 +916,7 @@ class Player:
         return x
 
     def match_game(self, gameID):
-        _, _, month, day, game = parse_gameID(gameID)
+        _, _, month, day, game = parse_game_id(gameID)
         # print('park: {}, year: {}, month: {}, day: {}'.format(park, year, month, day))
         match_month = self.month is None or month == self.month
         match_day = self.day is None or day == self.day
