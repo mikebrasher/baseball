@@ -4,7 +4,7 @@ import os
 from baseball.pipeline import Pipeline
 
 
-class TestPlay(unittest.TestCase):
+class TestPipeline(unittest.TestCase):
 
     def setUp(self):
         self.pipeline = Pipeline()
@@ -29,7 +29,7 @@ class TestPlay(unittest.TestCase):
         gameID = 'ANA202204070'
         game = data[gameID]
 
-        players, game_result = self.pipeline.transform(game)
+        players, game_result, starting_lineup = self.pipeline.transform(game)
 
         self.assertEqual(28, len(players))
 
@@ -54,6 +54,26 @@ class TestPlay(unittest.TestCase):
         self.assertEqual(1, game_result['home_score'])
         self.assertEqual(0, game_result['result'])
 
+        # test starting lineup
+        self.assertEqual('valdf001', starting_lineup['visitor']['pitcher'])
+        self.assertEqual('maldm001', starting_lineup['visitor']['catcher'])
+        self.assertEqual('gurry001', starting_lineup['visitor']['first_base'])
+        self.assertEqual('altuj001', starting_lineup['visitor']['second_base'])
+        self.assertEqual('brega001', starting_lineup['visitor']['third_base'])
+        self.assertEqual('penaj004', starting_lineup['visitor']['short_stop'])
+        self.assertEqual('alvay001', starting_lineup['visitor']['left_field'])
+        self.assertEqual('mccoc001', starting_lineup['visitor']['center_field'])
+        self.assertEqual('tuckk001', starting_lineup['visitor']['right_field'])
+        self.assertEqual('ohtas001', starting_lineup['home']['pitcher'])
+        self.assertEqual('stasm001', starting_lineup['home']['catcher'])
+        self.assertEqual('walsj001', starting_lineup['home']['first_base'])
+        self.assertEqual('duffm002', starting_lineup['home']['second_base'])
+        self.assertEqual('renda001', starting_lineup['home']['third_base'])
+        self.assertEqual('fletd002', starting_lineup['home']['short_stop'])
+        self.assertEqual('adelj001', starting_lineup['home']['left_field'])
+        self.assertEqual('troum001', starting_lineup['home']['center_field'])
+        self.assertEqual('marsb002', starting_lineup['home']['right_field'])
+
     def test_load(self):
         # connect to database and get cursor
         con = sqlite3.connect(':memory:')
@@ -62,8 +82,8 @@ class TestPlay(unittest.TestCase):
         data = self.pipeline.extract(2022)
         game_id = 'ANA202204070'
         game = data[game_id]
-        players, game_result = self.pipeline.transform(game)
-        game_data = {game_id: (players, game_result)}
+        players, game_result, starting_lineup = self.pipeline.transform(game)
+        game_data = {game_id: (players, game_result, starting_lineup)}
 
         self.pipeline.load(con, game_data)
 
@@ -87,7 +107,8 @@ class TestPlay(unittest.TestCase):
             os.remove(db_file)
 
         self.pipeline.db_file = db_file
-        self.pipeline.process(2022)
+        self.pipeline.lo_year = self.pipeline.hi_year = 2022  # just process 2022
+        self.pipeline.process()
 
         # connect to database and get cursor
         con = sqlite3.connect(db_file)
@@ -105,7 +126,22 @@ class TestPlay(unittest.TestCase):
             player_count += 1
         self.assertEqual(70894, player_count)
 
+        # assuming all features are positive,
+        # prefix sum should be monotonically increasing
+        cmd = 'SELECT * FROM player WHERE player_id=? ORDER BY datetime ASC'
+        player_id = 'ohtas001'
+        feature_idx = 3
+        prev = None
+        for row in cur.execute(cmd, [player_id]):
+            if prev is not None:
+                for idx in range(feature_idx, len(prev)):
+                    self.assertTrue(row[idx] >= prev[idx])
+            prev = row
+
+        # clean up
         con.close()
+        if os.path.exists(db_file):
+            os.remove(db_file)
 
 
 if __name__ == '__main__':
