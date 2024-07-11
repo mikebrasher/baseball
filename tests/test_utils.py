@@ -2,7 +2,7 @@ import unittest
 import torch
 import os
 from baseball.pipeline import Pipeline
-from baseball.utils import BaseballDataset, load_data
+from baseball.utils import BaseballDataset
 
 
 class TestBaseballDataset(unittest.TestCase):

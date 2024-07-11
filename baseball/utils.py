@@ -1,6 +1,6 @@
 import torch
 import numpy as np
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import Dataset, DataLoader, RandomSampler, BatchSampler
 import sqlite3
 
 
@@ -12,16 +12,19 @@ class BaseballDataset(Dataset):
         self.connection = sqlite3.connect(db_file)
         self.cursor = self.connection.cursor()
 
-        cmd = 'SELECT * FROM game'
+        cmd = 'SELECT game_id FROM game'
         self.game_list = []
         for row in self.cursor.execute(cmd):
             game_id = row[0]
             self.game_list.append(game_id)
 
-        cmd = 'SELECT * FROM player'
+        cmd = 'SELECT * FROM game'
         first_row = self.cursor.execute(cmd).fetchone()
-        self.feature_index = 3
-        self.num_feature = len(first_row[self.feature_index:])
+        self.feature_index = 5
+        self.num_aggregate_feature = len(first_row[self.feature_index:])
+
+        self.num_player = 18
+        self.num_feature = self.num_aggregate_feature // self.num_player
 
     def __len__(self):
         return len(self.game_list)
@@ -31,49 +34,69 @@ class BaseballDataset(Dataset):
             raise IndexError
 
         cmd = 'SELECT * FROM game WHERE game_id=?'
-        row = self.cursor.execute(cmd, [self.game_list[index]]).fetchone()
-        game_id = row[0]
+        game_id = self.game_list[index]
+        row = self.cursor.execute(cmd, [game_id]).fetchone()
+        assert row[0] == game_id
+        # game_id = row[0]
         # game_datetime = row[1]
         # vis_score = row[2]
         # home_score = row[3]
         label = row[4]
-        starting_lineup = row[5:]
-
-        # get features for every starting player
-        cmd = """
-            SELECT
-                *
-            FROM
-                player
-            WHERE
-                game_id=?
-        """
-        feature_dict = {}
-        for row in self.cursor.execute(cmd, [game_id]):
-            player_id = row[0]
-            assert row[1] == game_id
-            feature_dict[player_id] = row[self.feature_index:]
-
-        # preserve player order
-        features = []
-        for player_id in starting_lineup:
-            features.append(feature_dict[player_id])
-        features = torch.tensor(features)
+        features = torch.tensor(row[5:]).reshape(self.num_player, self.num_feature)
 
         return features, label
 
-    def __del__(self):
-        if self.connection:
-            self.connection.close()
+    def __getitems__(self, index_list):
+        game_id_list = [self.game_list[idx] for idx in index_list]
+
+        cmd = 'SELECT * FROM game WHERE game_id IN ({})'.format(','.join(['?'] * len(game_id_list)))
+        items = []
+        for row in self.cursor.execute(cmd, game_id_list):
+            assert row[0] in game_id_list
+            # game_id = row[0]
+            # game_datetime = row[1]
+            # vis_score = row[2]
+            # home_score = row[3]
+            label = row[4]
+            features = torch.tensor(row[5:]).reshape(self.num_player, self.num_feature)
+            items.append((features, label))
+
+        return items
 
 
 def load_data(db_file, num_workers=0, batch_size=128):
     dataset = BaseballDataset(db_file)
-    return DataLoader(dataset, num_workers=num_workers, batch_size=batch_size, shuffle=True, drop_last=True)
+    return DataLoader(
+        dataset,
+        batch_size=batch_size,
+        shuffle=True,
+        num_workers=num_workers,
+        drop_last=True,
+    )
+
+
+def load_all_data(db_file):
+    connection = sqlite3.connect(db_file)
+    cursor = connection.cursor()
+
+    cmd = 'SELECT * FROM game'
+    items = []
+    for row in cursor.execute(cmd):
+        # game_id = row[0]
+        # game_datetime = row[1]
+        # vis_score = row[2]
+        # home_score = row[3]
+        label = row[4]
+        features = torch.tensor(row[5:])
+        items.append((features, label))
+
+    connection.close()
+
+    return items
 
 
 if __name__ == '__main__':
-    bd = BaseballDataset('../data/features.db')
+    bd = BaseballDataset('../data/features.json')
 
     seed = 12345
     rng = np.random.default_rng(seed)
