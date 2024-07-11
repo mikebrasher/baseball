@@ -1,17 +1,16 @@
 import csv
-import os
 import sqlite3
+import os
 import time
-import datetime
-from baseball.player import Play, Player, parse_game_id, game_id_to_datetime
+from baseball.player import Play, Player, game_id_to_datetime
 
 
 class Pipeline:
 
-    def __init__(self):
+    def __init__(self, db_name='features'):
         self.data_path = '../data'
         self.season_path = os.path.join(self.data_path, 'seasons')
-        self.db_file = os.path.join(self.data_path, 'features.db')
+        self.db_file = os.path.join(self.data_path, '{}.db'.format(db_name))
         self.play = Play()
 
         self.lo_year = 1914
@@ -47,7 +46,7 @@ class Pipeline:
             return None
 
         rs = os.path.join(self.season_path, '{}rs.csv'.format(year))
-        print('extracting {}'.format(rs))
+        print('  extracting {}'.format(rs))
         with open(rs) as csv_file:
             reader = csv.DictReader(csv_file)
 
@@ -67,23 +66,29 @@ class Pipeline:
             if p not in players:
                 players[p] = Player(p)
 
-        def get_lineup(e):
+        # potential improvement: get designate hitter
+        # can be parsed from event files
+        # maybe parse first nine batters in game, but could catch early substitutions
+        def get_lineup(e, offset):
             lineup = {
-                'pitcher': e['pitcherID'],
-                'catcher': e['field_C_playerID'],
-                'first_base': e['field_1B_playerID'],
-                'second_base': e['field_2B_playerID'],
-                'third_base': e['field_3B_playerID'],
-                'short_stop': e['field_SS_playerID'],
-                'left_field': e['field_LF_playerID'],
-                'center_field': e['field_CF_playerID'],
-                'right_field': e['field_RF_playerID'],
+                e['pitcherID']: 1 + offset,
+                e['field_C_playerID']: 2 + offset,
+                e['field_1B_playerID']: 3 + offset,
+                e['field_2B_playerID']: 4 + offset,
+                e['field_3B_playerID']: 5 + offset,
+                e['field_SS_playerID']: 6 + offset,
+                e['field_LF_playerID']: 7 + offset,
+                e['field_CF_playerID']: 8 + offset,
+                e['field_RF_playerID']: 9 + offset,
             }
             return lineup
 
         vis_score = 0
         home_score = 0
-        starting_lineup = {'visitor': None, 'home': None}
+
+        vis_offset = -1
+        home_offset = 8
+        starting_lineup = {}
 
         max_event_in_game = 0
         for event in game_events:
@@ -96,12 +101,14 @@ class Pipeline:
             # save starting lineup for first event each team is fielding
             if event['visitor_or_home'] == '0':  # 0: visitor batting, 1: home batting
                 # visitor batting, home fielding
-                if starting_lineup['home'] is None:
-                    starting_lineup['home'] = get_lineup(event)
+                if home_offset is not None:
+                    starting_lineup.update(get_lineup(event, home_offset))
+                    home_offset = None
             else:
                 # home batting, visitor fielding
-                if starting_lineup['visitor'] is None:
-                    starting_lineup['visitor'] = get_lineup(event)
+                if vis_offset is not None:
+                    starting_lineup.update(get_lineup(event, vis_offset))
+                    vis_offset = None
 
             self.play.parse(event['theplay'], event['baserunning'])
 
@@ -137,50 +144,51 @@ class Pipeline:
         cursor = connection.cursor()
 
         num_feature = len(Player('foo').features())
+        num_player = 18
+        num_aggregate_feature = num_player * num_feature
+
+        # create new player table listing player x game features
+        num_feature = len(Player('foo').features())
+        feature_header = []
+        for idx in range(num_aggregate_feature):
+            feature_header.append('x{:04}'.format(idx))
 
         # reformat data to load into tables
         game_table_data = []
-        player_table_data = []
-        # get games in chronological order
+        # get games in chronological order to correctly calculate prefix sum
         all_games = sorted(game_data.keys(), key=game_id_to_datetime)
         for game_id in all_games:
             players, game_result, starting_lineup = game_data[game_id]
+            assert len(starting_lineup) == num_player
             game_datetime = str(game_id_to_datetime(game_id))
-            game_row = (
+
+            aggregate_features = [0] * num_aggregate_feature
+            for player_id, player in players.items():
+                # if player not seen yet, initialize prefix to zero
+                if player_id not in self.prefix_sum:
+                    self.prefix_sum[player_id] = [0] * num_feature
+
+                # if player is in the starting line up, aggregate
+                # individual player features ordered by team and position
+                if player_id in starting_lineup:
+                    offset = starting_lineup[player_id] * num_feature
+                    aggregate_features[offset:offset + num_feature] = self.prefix_sum[player_id]
+
+                # update the prefix sum after aggregation
+                player_game_features = player.features()
+                for idx in range(num_feature):
+                    self.prefix_sum[player_id][idx] += player_game_features[idx]
+
+            # store the feature and label for this game
+            row = [
                 game_id,
                 game_datetime,
                 game_result['vis_score'],
                 game_result['home_score'],
-                game_result['result'],
-                starting_lineup['visitor']['pitcher'],
-                starting_lineup['visitor']['catcher'],
-                starting_lineup['visitor']['first_base'],
-                starting_lineup['visitor']['second_base'],
-                starting_lineup['visitor']['third_base'],
-                starting_lineup['visitor']['short_stop'],
-                starting_lineup['visitor']['left_field'],
-                starting_lineup['visitor']['center_field'],
-                starting_lineup['visitor']['right_field'],
-                starting_lineup['home']['pitcher'],
-                starting_lineup['home']['catcher'],
-                starting_lineup['home']['first_base'],
-                starting_lineup['home']['second_base'],
-                starting_lineup['home']['third_base'],
-                starting_lineup['home']['short_stop'],
-                starting_lineup['home']['left_field'],
-                starting_lineup['home']['center_field'],
-                starting_lineup['home']['right_field'],
-            )
-            game_table_data.append(game_row)
-
-            for player_id, player in players.items():
-                if player_id not in self.prefix_sum:
-                    self.prefix_sum[player_id] = [0] * num_feature
-                player_row = [player_id, game_id, game_datetime] + self.prefix_sum[player_id]
-                player_game_features = player.features()
-                for idx in range(num_feature):
-                    self.prefix_sum[player_id][idx] += player_game_features[idx]
-                player_table_data.append(tuple(player_row))
+                game_result['result']
+            ]
+            row += aggregate_features
+            game_table_data.append(tuple(row))
 
         # create new game table if it doesn't already exist
         cmd = """
@@ -191,26 +199,9 @@ class Pipeline:
                     vis_score,
                     home_score,
                     result,
-                    vis_catcher,
-                    vis_pitcher,
-                    vis_first_base,
-                    vis_second_base,
-                    vis_third_base,
-                    vis_short_stop,
-                    vis_left_field,
-                    vis_center_field,
-                    vis_right_field,
-                    home_pitcher,
-                    home_catcher,
-                    home_first_base,
-                    home_second_base,
-                    home_third_base,
-                    home_short_stop,
-                    home_left_field,
-                    home_center_field,
-                    home_right_field
+                    {}
                 )
-        """
+        """.format(',\n'.join(feature_header))
         cursor.execute(cmd)
         connection.commit()
 
@@ -221,25 +212,10 @@ class Pipeline:
             cursor.executemany(cmd, game_table_data)
         connection.commit()
 
-        # create new player table listing player x game features
-        num_feature = len(Player('foo').features())
-        feature_header = []
-        for idx in range(num_feature):
-            feature_header.append('x{:03}'.format(idx))
-        cmd = 'CREATE TABLE IF NOT EXISTS player(player_id, game_id, datetime, {})'.format(', '.join(feature_header))
-        cursor.execute(cmd)
-        connection.commit()
-
-        # insert player x game feature into player table
-        if player_table_data:
-            num_column = len(player_table_data[0])
-            cmd = 'INSERT INTO player VALUES({})'.format(', '.join(['?'] * num_column))
-            cursor.executemany(cmd, player_table_data)
-        connection.commit()
-
     def process(self):
         if os.path.exists(self.db_file):
-            os.remove(self.db_file)
+            print('file {} already exists'.format(self.db_file))
+            return
 
         con = sqlite3.connect(self.db_file)
 
@@ -257,13 +233,23 @@ class Pipeline:
             # load
             self.load(con, game_data)
         toc = time.time()
-        print('processed all seasons in {} seconds'.format(toc - tic))
-        # processed all seasons in 530.7778089046478 seconds
+        print('  processed all seasons in {} seconds'.format(toc - tic))
 
         con.close()
 
 
 if __name__ == '__main__':
-    p = Pipeline()
-    p.lo_year = p.hi_year  # just process last year
-    p.process()
+    print('generating train database...')
+    train_pipe = Pipeline('train')
+    train_pipe.hi_year = 2020
+    train_pipe.process()
+
+    print('generating valid database...')
+    valid_pipe = Pipeline('valid')
+    valid_pipe.lo_year = valid_pipe.hi_year = 2021
+    valid_pipe.process()
+
+    print('generating test database...')
+    test_pipe = Pipeline('test')
+    test_pipe.lo_year = test_pipe.hi_year = 2022
+    test_pipe.process()
