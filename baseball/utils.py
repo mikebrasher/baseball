@@ -1,6 +1,6 @@
 import torch
 import numpy as np
-from torch.utils.data import Dataset, DataLoader, RandomSampler, BatchSampler
+from torch.utils.data import Dataset, DataLoader
 import sqlite3
 
 
@@ -42,7 +42,7 @@ class BaseballDataset(Dataset):
         # vis_score = row[2]
         # home_score = row[3]
         label = row[4]
-        features = torch.tensor(row[5:]).reshape(self.num_player, self.num_feature)
+        features = torch.tensor(row[self.feature_index:]).reshape(self.num_player, self.num_feature)
 
         return features, label
 
@@ -58,10 +58,34 @@ class BaseballDataset(Dataset):
             # vis_score = row[2]
             # home_score = row[3]
             label = row[4]
-            features = torch.tensor(row[5:]).reshape(self.num_player, self.num_feature)
+            features = torch.tensor(row[self.feature_index:]).reshape(self.num_player, self.num_feature)
             items.append((features, label))
 
         return items
+
+    def fetch_all_data(self, max_count=None):
+        feature_list = []
+        label_list = []
+
+        count = 0
+        cmd = 'SELECT * FROM game'
+        for row in self.cursor.execute(cmd):
+            # game_id = row[0]
+            # game_datetime = row[1]
+            # vis_score = row[2]
+            # home_score = row[3]
+            label = row[4]
+            label_list.append(label)
+            features = torch.tensor(row[self.feature_index:]).reshape(self.num_player, self.num_feature)
+            feature_list.append(features)
+            count += 1
+            if max_count is not None and count >= max_count:
+                break
+
+        all_features = torch.stack(feature_list)
+        all_labels = torch.tensor(label_list)
+
+        return all_features, all_labels
 
 
 def load_data(db_file, num_workers=0, batch_size=128):
@@ -73,26 +97,6 @@ def load_data(db_file, num_workers=0, batch_size=128):
         num_workers=num_workers,
         drop_last=True,
     )
-
-
-def load_all_data(db_file):
-    connection = sqlite3.connect(db_file)
-    cursor = connection.cursor()
-
-    cmd = 'SELECT * FROM game'
-    items = []
-    for row in cursor.execute(cmd):
-        # game_id = row[0]
-        # game_datetime = row[1]
-        # vis_score = row[2]
-        # home_score = row[3]
-        label = row[4]
-        features = torch.tensor(row[5:])
-        items.append((features, label))
-
-    connection.close()
-
-    return items
 
 
 if __name__ == '__main__':
