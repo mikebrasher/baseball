@@ -90,14 +90,7 @@ class Pipeline:
         home_offset = 8
         starting_lineup = {}
 
-        max_event_in_game = 0
         for event in game_events:
-            event_in_game = int(event['event_in_game'])
-            if event_in_game > max_event_in_game:
-                max_event_in_game = event_in_game
-                vis_score = int(event['vis_score'])
-                home_score = int(event['home_score'])
-
             # save starting lineup for first event each team is fielding
             if event['visitor_or_home'] == '0':  # 0: visitor batting, 1: home batting
                 # visitor batting, home fielding
@@ -111,6 +104,13 @@ class Pipeline:
                     vis_offset = None
 
             self.play.parse(event['theplay'], event['baserunning'])
+            num_run_scored = len(self.play.score)
+            if event['visitor_or_home'] == '0':  # 0: visitor batting, 1: home batting
+                # visitor batting, home fielding
+                vis_score += num_run_scored
+            else:
+                # home batting, visitor fielding
+                home_score += num_run_scored
 
             #  ------------ parse batting ------------
             player_id = event['batterID']

@@ -24,7 +24,7 @@ class TestPipeline(unittest.TestCase):
         result = self.pipeline.extract(2022)
         self.assertEqual(2430, len(result))
 
-    def test_transform(self):
+    def test_transform_angels_april_07_2022(self):
         data = self.pipeline.extract(2022)
         gameID = 'ANA202204070'
         game = data[gameID]
@@ -76,6 +76,49 @@ class TestPipeline(unittest.TestCase):
             'marsb002': 17,
         }
         self.assertDictEqual(expected, starting_lineup)
+
+    def test_transform_walk_off(self):
+        data = self.pipeline.extract(2022)
+        # dodgers @ padres 4/23/2022
+        gameID = 'SDN202204230'
+        game = data[gameID]
+
+        _, game_result, _ = self.pipeline.transform(game)
+
+        self.assertEqual(2, game_result['vis_score'])
+        self.assertEqual(3, game_result['home_score'])
+        self.assertEqual(1, game_result['result'])
+
+    def test_transform_game_result(self):
+        data = self.pipeline.extract(2022)
+
+        dodgers = 'LAN'
+
+        home_win = 0
+        home_loss = 0
+        away_win = 0
+        away_loss = 0
+        for gameID in data:
+            game = data[gameID]
+            _, game_result, _ = self.pipeline.transform(game)
+            if game[0]['hometeam'] == dodgers:
+                if game_result['result'] == 1:
+                    home_win += 1
+                else:
+                    home_loss += 1
+            elif game[0]['visteam'] == dodgers:
+                if game_result['result'] == 1:
+                    away_loss += 1
+                else:
+                    away_win += 1
+
+        self.assertEqual(57, home_win)
+        self.assertEqual(24, home_loss)
+        self.assertEqual(54, away_win)
+        self.assertEqual(27, away_loss)
+
+        self.assertEqual(111, home_win + away_win)
+        self.assertEqual(51, home_loss + away_loss)
 
     def test_load(self):
         # connect to database and get cursor
