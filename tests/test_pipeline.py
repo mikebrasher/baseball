@@ -1,7 +1,44 @@
 import unittest
 import sqlite3
 import os
-from baseball.pipeline import Pipeline
+import numpy as np
+from baseball.pipeline import Pipeline, StandardScaler
+
+
+class TestStandardScaler(unittest.TestCase):
+
+    def setUp(self):
+        self.num_sample = 5
+        self.num_feature = 3
+        self.scaler = StandardScaler(num_feature=self.num_feature)
+        self.rng = np.random.default_rng(12345)
+
+    def test_update(self):
+        x = self.rng.random((self.num_sample, self.num_feature))
+
+        old_sum1 = self.scaler.sum1.copy()
+        old_sum2 = self.scaler.sum2.copy()
+        for sample in x:
+            self.scaler.update(list(sample))
+            for idx in range(self.num_feature):
+                self.assertAlmostEqual(sample[idx], self.scaler.sum1[idx] - old_sum1[idx])
+                self.assertAlmostEqual(sample[idx] * sample[idx], self.scaler.sum2[idx] - old_sum2[idx])
+            old_sum1 = self.scaler.sum1.copy()
+            old_sum2 = self.scaler.sum2.copy()
+
+    def test_calculate(self):
+        x = self.rng.random((self.num_sample, self.num_feature))
+        expected_mu = x.mean(axis=0)
+        expected_std = x.std(axis=0)
+
+        for sample in x:
+            self.scaler.update(list(sample))
+
+        actual_mu, actual_std = self.scaler.calculate_statistics()
+
+        for idx in range(self.num_feature):
+            self.assertAlmostEqual(expected_mu[idx], actual_mu[idx])
+            self.assertAlmostEqual(expected_std[idx], actual_std[idx])
 
 
 class TestPipeline(unittest.TestCase):
@@ -138,6 +175,40 @@ class TestPipeline(unittest.TestCase):
         for _ in cur.execute(cmd):
             game_count += 1
         self.assertEqual(1, game_count)
+
+    def test_publish(self):
+        # connect to database and get cursor
+        con = sqlite3.connect(':memory:')
+        cur = con.cursor()
+
+        num_sample = 5
+        data = []
+        for offset in range(num_sample):
+            sample = [offset + idx for idx in range(self.pipeline.num_aggregate_feature)]
+            data.append(sample)
+            self.pipeline.scaler.update(sample)
+
+        data = np.array(data)
+        expected_mu = data.mean(axis=0)
+        expected_std = data.std(axis=0)
+
+        self.pipeline.publish(con)
+
+        cmd = """SELECT * FROM scaler WHERE statistic='mu'"""
+        row = cur.execute(cmd).fetchone()
+        self.assertEqual(0, row[0])
+        self.assertEqual('mu', row[1])
+        actual_mu = row[2:]
+
+        cmd = """SELECT * FROM scaler WHERE statistic='std'"""
+        row = cur.execute(cmd).fetchone()
+        self.assertEqual(1, row[0])
+        self.assertEqual('std', row[1])
+        actual_std = row[2:]
+
+        for idx in range(self.pipeline.num_aggregate_feature):
+            self.assertAlmostEqual(expected_mu[idx], actual_mu[idx])
+            self.assertAlmostEqual(expected_std[idx], actual_std[idx])
 
     def test_process(self):
         db_file = 'test_process.db'
