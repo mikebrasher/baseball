@@ -2,6 +2,7 @@ import csv
 import sqlite3
 import os
 import time
+import collections
 import numpy as np
 from baseball.player import Play, Player, game_id_to_datetime
 
@@ -32,9 +33,160 @@ class StandardScaler:
         return mu, std
 
 
-class Pipeline:
+runner_map = {
+    '1': 'runner_1b',
+    '2': 'runner_2b',
+    '3': 'runner_3b',
+}
 
-    def __init__(self, db_name='features'):
+position_map = {
+            '1': 'pitcherID',
+            '2': 'field_C_playerID',
+            '3': 'field_1B_playerID',
+            '4': 'field_2B_playerID',
+            '5': 'field_3B_playerID',
+            '6': 'field_SS_playerID',
+            '7': 'field_LF_playerID',
+            '8': 'field_CF_playerID',
+            '9': 'field_RF_playerID',
+        }
+
+
+class Lineup:
+    def __init__(self, use_dh=False):
+        self.use_dh = use_dh
+        self.fielders = {}
+        self.batters = []
+        self.pitchers = {}
+        self.designated_hitter = None
+        self.team_key = None
+
+    def reset(self):
+        self.fielders = {}
+        self.batters = []
+        self.pitchers = {}
+        self.designated_hitter = None
+        self.team_key = None
+
+    def find_designated_hitter(self):
+        if self.use_dh:
+            for batter_id in self.batters:
+                if batter_id not in self.fielders.values():
+                    self.designated_hitter = batter_id
+                    break
+
+    def relief_pitchers(self):
+        result = []
+        starting_pitcher = self.fielders['pitcherID']
+        for pitcher in self.pitchers:
+            if pitcher != starting_pitcher:
+                result.append(pitcher)
+        return result
+
+    def fetch(self):
+        result = [
+            self.fielders['pitcherID'],
+            self.fielders['field_C_playerID'],
+            self.fielders['field_1B_playerID'],
+            self.fielders['field_2B_playerID'],
+            self.fielders['field_3B_playerID'],
+            self.fielders['field_SS_playerID'],
+            self.fielders['field_LF_playerID'],
+            self.fielders['field_CF_playerID'],
+            self.fielders['field_RF_playerID'],
+        ]
+        if self.use_dh:
+            result.append(self.designated_hitter)
+        return result
+
+
+class LineupParser:
+    def __init__(self, use_dh=False, use_bullpen=False):
+        self.use_dh = use_dh
+        self.use_bullpen = use_bullpen
+
+        self.num_batter = 9
+        self.num_bullpen = 5
+
+        self.home = Lineup(use_dh)
+        self.visitor = Lineup(use_dh)
+
+        self.bullpen = {}  # rolling window of previous pitchers for each team
+
+    def reset(self):
+        self.home.reset()
+        self.visitor.reset()
+
+    def roster_size(self):
+        result = self.num_batter
+        if self.use_dh:
+            result += 1
+        if self.use_bullpen:
+            result += self.num_bullpen
+        return result
+
+    def update_bullpen(self, team_key, pitchers):
+        if self.use_bullpen:
+            if team_key not in self.bullpen:
+                self.bullpen[team_key] = collections.deque(maxlen=self.num_bullpen)
+            for pitcher_id in pitchers:
+                self.bullpen[team_key].append(pitcher_id)
+
+    def get_bullpen(self, team_key):
+        # always return a list of length num_bullpen
+        result = [None] * self.num_bullpen
+        if self.use_bullpen and team_key in self.bullpen:
+            for idx, pitcher_id in enumerate(self.bullpen[team_key]):
+                result[idx] = pitcher_id
+        return result
+
+    def append(self, event):
+        self.visitor.team_key = event['visteam']
+        self.home.team_key = event['hometeam']
+
+        batter_id = event['batterID']
+        pitcher_id = event['pitcherID']
+
+        visitor_batting = event['visitor_or_home'] == '0'
+        if visitor_batting:
+            if len(self.visitor.batters) < self.num_batter:
+                self.visitor.batters.append(batter_id)
+            if not self.home.fielders:
+                for position in position_map.values():
+                    self.home.fielders[position] = event[position]
+            self.home.pitchers[pitcher_id] = True
+        else:
+            if len(self.home.batters) < self.num_batter:
+                self.home.batters.append(batter_id)
+            if not self.visitor.fielders:
+                for position in position_map.values():
+                    self.visitor.fielders[position] = event[position]
+            self.visitor.pitchers[pitcher_id] = True
+
+    def fetch(self):
+        if self.use_dh:
+            self.home.find_designated_hitter()
+            self.visitor.find_designated_hitter()
+
+        home_lineup = self.home.fetch()
+        visitor_lineup = self.visitor.fetch()
+
+        if self.use_bullpen:
+            # get previous bullpens before updating
+            visitor_bullpen = self.get_bullpen(self.visitor.team_key)
+            home_bullpen = self.get_bullpen(self.home.team_key)
+            starting_lineup = visitor_lineup + visitor_bullpen + home_lineup + home_bullpen
+            self.update_bullpen(self.home.team_key, self.home.relief_pitchers())
+            self.update_bullpen(self.visitor.team_key, self.visitor.relief_pitchers())
+        else:
+            starting_lineup = visitor_lineup + home_lineup
+
+        result = {player_id: idx for idx, player_id in enumerate(starting_lineup) if player_id is not None}
+        return result
+
+
+class Pipeline:
+    def __init__(self, db_name='features', use_dh=False, use_bullpen=False):
         self.data_path = '../data'
         self.season_path = os.path.join(self.data_path, 'seasons')
         self.db_file = os.path.join(self.data_path, '{}.db'.format(db_name))
@@ -46,8 +198,10 @@ class Pipeline:
         # exclusive prefix sum of each player's career stats for each game they play
         self.prefix_sum = {}
 
+        self.lineup_parser = LineupParser(use_dh=use_dh, use_bullpen=use_bullpen)
+        self.num_player = 2 * self.lineup_parser.roster_size()
+
         self.num_feature = len(Player('foo').features())
-        self.num_player = 18
         self.num_aggregate_feature = self.num_player * self.num_feature
 
         # create new player table listing player x game features
@@ -57,23 +211,8 @@ class Pipeline:
 
         self.scaler = StandardScaler(num_feature=self.num_aggregate_feature)
 
-        self.runners = {
-            '1': 'runner_1b',
-            '2': 'runner_2b',
-            '3': 'runner_3b',
-        }
-
-        self.positions = {
-            '1': 'pitcherID',
-            '2': 'field_C_playerID',
-            '3': 'field_1B_playerID',
-            '4': 'field_2B_playerID',
-            '5': 'field_3B_playerID',
-            '6': 'field_SS_playerID',
-            '7': 'field_LF_playerID',
-            '8': 'field_CF_playerID',
-            '9': 'field_RF_playerID',
-        }
+    def parse_lineup(self):
+        pass
 
     def extract(self, year):
         if not isinstance(year, int):
@@ -98,83 +237,56 @@ class Pipeline:
         return data
 
     def transform(self, game_events):
-        players = {}
+        players = {}  # all players active this game
 
         def add_player(p):
             if p not in players:
                 players[p] = Player(p)
 
-        # potential improvement: get designate hitter
-        # can be parsed from event files
-        # maybe parse first nine batters in game, but could catch early substitutions
-        def get_lineup(e, offset):
-            lineup = {
-                e['pitcherID']: 1 + offset,
-                e['field_C_playerID']: 2 + offset,
-                e['field_1B_playerID']: 3 + offset,
-                e['field_2B_playerID']: 4 + offset,
-                e['field_3B_playerID']: 5 + offset,
-                e['field_SS_playerID']: 6 + offset,
-                e['field_LF_playerID']: 7 + offset,
-                e['field_CF_playerID']: 8 + offset,
-                e['field_RF_playerID']: 9 + offset,
-            }
-            return lineup
-
         vis_score = 0
         home_score = 0
 
-        vis_offset = -1
-        home_offset = 8
-        starting_lineup = {}
-
+        self.lineup_parser.reset()
         for event in game_events:
-            # save starting lineup for first event each team is fielding
-            if event['visitor_or_home'] == '0':  # 0: visitor batting, 1: home batting
-                # visitor batting, home fielding
-                if home_offset is not None:
-                    starting_lineup.update(get_lineup(event, home_offset))
-                    home_offset = None
-            else:
-                # home batting, visitor fielding
-                if vis_offset is not None:
-                    starting_lineup.update(get_lineup(event, vis_offset))
-                    vis_offset = None
+            self.lineup_parser.append(event)
 
+            # ------------ parse the play ------------
             self.play.parse(event['theplay'], event['baserunning'])
             num_run_scored = len(self.play.score)
-            if event['visitor_or_home'] == '0':  # 0: visitor batting, 1: home batting
-                # visitor batting, home fielding
+            visitor_batting = event['visitor_or_home'] == '0'
+            if visitor_batting:
                 vis_score += num_run_scored
             else:
-                # home batting, visitor fielding
                 home_score += num_run_scored
 
             #  ------------ parse batting ------------
-            player_id = event['batterID']
-            add_player(player_id)
-            players[player_id].batting.append(self.play)
+            batter_id = event['batterID']
+            add_player(batter_id)
+            players[batter_id].batting.append(self.play)
 
             #  ------------ parse base running ------------
-            for runner, label in self.runners.items():
-                player_id = event[label]
-                if player_id != '':
-                    add_player(player_id)
-                    players[player_id].base_running.append(self.play, runner)
+            for runner, label in runner_map.items():
+                runner_id = event[label]
+                if runner_id != '':
+                    add_player(runner_id)
+                    players[runner_id].base_running.append(self.play, runner)
 
             #  ------------ parse fielding ------------
-            for position, label in self.positions.items():
-                player_id = event[label]
-                add_player(player_id)
-                players[player_id].fielding.append(self.play, position)
+            for position, label in position_map.items():
+                fielder_id = event[label]
+                add_player(fielder_id)
+                players[fielder_id].fielding.append(self.play, position)
 
             #  ------------ parse pitching ------------
-            player_id = event['pitcherID']
-            add_player(player_id)
-            players[player_id].pitching.append(self.play)
+            pitcher_id = event['pitcherID']
+            add_player(pitcher_id)
+            players[pitcher_id].pitching.append(self.play)
 
         home_win = 1 if home_score > vis_score else 0
         game_result = {'vis_score': vis_score, 'home_score': home_score, 'result': home_win}
+
+        #  ------------ build starting lineup ------------
+        starting_lineup = self.lineup_parser.fetch()
 
         return players, game_result, starting_lineup
 
@@ -190,23 +302,27 @@ class Pipeline:
             assert len(starting_lineup) == self.num_player
             game_datetime = str(game_id_to_datetime(game_id))
 
+            # aggregate individual player features ordered by team and position
+            # any expected players missing from lineup have features initialized as zeros
             aggregate_features = [0] * self.num_aggregate_feature
+            for player_id in starting_lineup:
+                if player_id in self.prefix_sum:
+                    offset = starting_lineup[player_id] * self.num_feature
+                    aggregate_features[offset:offset + self.num_feature] = self.prefix_sum[player_id]
+                else:
+                    # leave players spot in aggregate feature as zeros if we haven't seen them yet
+                    pass
+            self.scaler.update(aggregate_features)
+
+            # update the prefix sum after aggregation
             for player_id, player in players.items():
                 # if player not seen yet, initialize prefix to zero
                 if player_id not in self.prefix_sum:
                     self.prefix_sum[player_id] = [0] * self.num_feature
 
-                # if player is in the starting line up, aggregate
-                # individual player features ordered by team and position
-                if player_id in starting_lineup:
-                    offset = starting_lineup[player_id] * self.num_feature
-                    aggregate_features[offset:offset + self.num_feature] = self.prefix_sum[player_id]
-
-                # update the prefix sum after aggregation
                 player_game_features = player.features()
                 for idx in range(self.num_feature):
                     self.prefix_sum[player_id][idx] += player_game_features[idx]
-            self.scaler.update(aggregate_features)
 
             # store the feature and label for this game
             row = [
